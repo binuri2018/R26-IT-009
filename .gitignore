@@ -7,6 +7,7 @@ data/
 *.faiss
 *.pkl
 *.pt
+backend/components/narrative_learning/science_vector_db/
 
 # Adaptive Quiz component ships its model weights so it works out of the box.
 !backend/model/best.pt

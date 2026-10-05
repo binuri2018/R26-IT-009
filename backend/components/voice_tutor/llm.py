@@ -64,11 +64,39 @@ def _openai_answer(system_content: str, context: str, question: str) -> str:
     return r.choices[0].message.content.strip()
 
 
+def _ollama_chat_models(base: str) -> list[str]:
+    with httpx.Client(timeout=10.0) as client:
+        r = client.get(f"{base.rstrip('/')}/api/tags")
+        r.raise_for_status()
+        names = [
+            (m.get("name") or m.get("model") or "").strip()
+            for m in (r.json().get("models") or [])
+        ]
+    skip = ("embed", "nomic")
+    return [n for n in names if n and not any(s in n.lower() for s in skip)]
+
+
+def _pick_installed_model(configured: str, installed: list[str]) -> str | None:
+    if not installed:
+        return None
+    want = (configured or "").strip().lower()
+    want_base = want.split(":")[0]
+    for name in installed:
+        low = name.lower()
+        if low == want or low.startswith(f"{want_base}:"):
+            return name
+        if low.split(":")[0] == want_base:
+            return name
+    return installed[0]
+
+
 def _ollama_answer(system_content: str, context: str, question: str) -> str:
-    url = f"{settings.ollama_base_url.rstrip('/')}/api/chat"
+    base = settings.ollama_base_url.rstrip("/")
+    url = f"{base}/api/chat"
     user_content = f"""Context from syllabus materials:\n\n{context}\n\nStudent question:\n{question}"""
+    model = (settings.ollama_chat_model or "").strip() or "llama3.1"
     payload = {
-        "model": settings.ollama_chat_model,
+        "model": model,
         "messages": [
             {"role": "system", "content": system_content},
             {"role": "user", "content": user_content},
@@ -78,6 +106,22 @@ def _ollama_answer(system_content: str, context: str, question: str) -> str:
     }
     with httpx.Client(timeout=settings.ollama_timeout_seconds) as client:
         r = client.post(url, json=payload)
+        if r.status_code == 404:
+            installed = _ollama_chat_models(base)
+            fallback = _pick_installed_model(model, installed)
+            err = ""
+            try:
+                err = (r.json() or {}).get("error") or r.text
+            except Exception:
+                err = r.text
+            if not fallback or fallback.lower() == model.lower():
+                have = ", ".join(installed) or "(none)"
+                raise RuntimeError(
+                    f"Ollama has no model '{model}'. Installed chat models: {have}. "
+                    f"Run `ollama pull {model}` or set OLLAMA_CHAT_MODEL in .env. ({err})"
+                )
+            payload["model"] = fallback
+            r = client.post(url, json=payload)
         r.raise_for_status()
         data = r.json()
     msg = data.get("message", {}) or {}

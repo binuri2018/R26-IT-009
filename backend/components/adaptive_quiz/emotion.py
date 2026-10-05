@@ -121,34 +121,37 @@ def _detect_pick_class(
             raw = raw[0]
         return str(raw)
 
-    best_naive = max(scores_by_class, key=scores_by_class.get)
-    best_score = scores_by_class[best_naive]
-    naive_expr = map_to_expression(raw_name(best_naive), label_map)
+    # Valence priors: this 3-class detector (positive/neutral/negative) under-fires
+    # smiles and frowns relative to the large "neutral face" box. Lift both affects
+    # so happy/frustrated can actually win, then only demote a weak negative.
+    _PRIOR = {"happy": 1.28, "frustrated": 1.12, "neutral": 1.0, "confused": 1.0, "surprised": 1.0}
+
+    def ranked(cid: int) -> float:
+        expr = map_to_expression(raw_name(cid), label_map)
+        return scores_by_class[cid] * _PRIOR.get(expr, 1.0)
+
+    best_cid = max(scores_by_class, key=ranked)
+    best_score = scores_by_class[best_cid]
 
     happy_ids = [
         cid for cid in scores_by_class
         if map_to_expression(raw_name(cid), label_map) == "happy"
     ]
-
-    best_cid: int = best_naive
     if happy_ids:
         best_happy = max(happy_ids, key=lambda c: scores_by_class[c])
         hs = scores_by_class[best_happy]
-        near_win = hs >= best_score * 0.88
-        smile_lift = naive_expr == "neutral" and hs >= best_score * 0.52
-        if near_win or smile_lift:
+        if hs >= best_score * 0.42:
             best_cid = best_happy
 
-    # Neutral tie-break: this model over-fires "negative" on noisy frames, so if the
-    # winner is frustrated but a neutral box scored nearly as high, prefer neutral.
     if map_to_expression(raw_name(best_cid), label_map) == "frustrated":
+        frustrated_conf = conf_by_class.get(best_cid, 0.0)
         neutral_ids = [
             cid for cid in scores_by_class
             if map_to_expression(raw_name(cid), label_map) == "neutral"
         ]
-        if neutral_ids:
+        if neutral_ids and frustrated_conf < 0.22:
             best_neutral = max(neutral_ids, key=lambda c: scores_by_class[c])
-            if scores_by_class[best_neutral] >= scores_by_class[best_cid] * 0.75:
+            if scores_by_class[best_neutral] >= scores_by_class[best_cid] * 0.95:
                 best_cid = best_neutral
 
     return best_cid, float(conf_by_class.get(best_cid, 0.0))
@@ -185,12 +188,7 @@ def get_model():
 
 
 def _gate_expression(expr: str, conf: float) -> tuple[str, float]:
-    """Fall back to neutral when the model isn't confident enough.
-
-    The webcam feed is often dim / off-angle and this valence model over-reports
-    "negative" on such frames, so a frustrated read must clear a higher bar than
-    a neutral/positive one. When unsure we return neutral rather than guessing.
-    """
+    """Keep a weak read as neutral; allow typical webcam valence confidences through."""
     if expr == "neutral":
         return expr, conf
     floor = settings.emotion_negative_min_conf if expr == "frustrated" else settings.emotion_min_conf

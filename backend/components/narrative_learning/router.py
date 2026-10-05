@@ -1,6 +1,8 @@
 """Narrative Learning API: persona theme + textbook RAG story."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from backend.components.narrative_learning.classifier import classify, log_theme_feedback, survey_spec
@@ -12,6 +14,8 @@ from backend.components.narrative_learning.schemas import (
     ThemeFeedbackRequest,
 )
 from backend.components.narrative_learning.syllabus_data import CHAPTER_MAP
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/narrative-learning", tags=["Narrative Learning"])
 
@@ -86,15 +90,22 @@ def generate(body: GenerateRequest) -> GenerateResponse:
             "story_opening": body.story_opening,
         })
         theme = classified["theme"]
-    data = engine.generate_chapter(
-        student_theme=theme,
-        topic=body.topic,
-        diagnostic_query=body.diagnostic,
-        interest=body.interest,
-        aspiration=body.aspiration,
-        struggle_level=body.struggle_level,
-        book_name=body.book,
-    )
+    try:
+        data = engine.generate_chapter(
+            student_theme=theme,
+            topic=body.topic,
+            diagnostic_query=body.diagnostic,
+            interest=body.interest,
+            aspiration=body.aspiration,
+            struggle_level=body.struggle_level,
+            book_name=body.book,
+        )
+    except Exception as exc:
+        logger.exception("Narrative generate_chapter failed")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Story generation failed: {exc}",
+        ) from exc
     if not data or not (data.get("story") or "").strip():
         raise HTTPException(status_code=502, detail="Story generation failed. Please try again.")
 

@@ -59,6 +59,13 @@ def _llm_connection_detail(exc: httpx.HTTPError) -> str:
             f"`ollama pull {m}`, or set OPENAI_API_KEY in .env to use OpenAI instead of Ollama. "
             f"(Detail: {raw})"
         )
+    if "404" in raw:
+        m = settings.ollama_chat_model
+        return (
+            f"Ollama is running but model '{m}' was not found. "
+            f"Run `ollama pull {m}` or set OLLAMA_CHAT_MODEL to an installed model "
+            f"(this machine has llama3.1). (Detail: {raw})"
+        )
     return f"LLM backend request failed: {raw}"
 
 

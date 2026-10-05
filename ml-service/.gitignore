@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 *.pyo
 models/*.pkl
+!models/learning_state_model.pkl

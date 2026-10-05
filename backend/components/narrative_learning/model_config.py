@@ -50,14 +50,18 @@ def get_llm():
         api_key = os.getenv("GROQ_API_KEY", "").strip()
         if not api_key:
             raise ValueError("GROQ_API_KEY is missing in .env")
+        # JSON mode + non-thinking: Qwen 3.6 otherwise spends max_tokens on
+        # hidden reasoning and returns an empty story (HTTP 502).
         return ChatGroq(
             model=GROQ_MODEL,
             api_key=api_key,
             temperature=0.4,
-            max_tokens=4096,
+            # Groq free/on-demand TPM is 8000: requested tokens = input + max_tokens.
+            max_tokens=1800,
+            timeout=120.0,
             reasoning_format="hidden",
             reasoning_effort="none",
-        )
+        ).bind(response_format={"type": "json_object"})
 
     if LLM_PROVIDER == "openrouter":
         from langchain_openai import ChatOpenAI

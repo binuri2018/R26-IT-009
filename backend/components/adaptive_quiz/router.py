@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from backend.common.config import settings
 from backend.components.adaptive_quiz import ml_predict
-from backend.components.adaptive_quiz.db import quiz_db_ready
+from backend.components.adaptive_quiz.db import quiz_db_error, quiz_db_ready
 from backend.components.adaptive_quiz.deps import StudentDep, TeacherDep, ensure_owner
 from backend.components.adaptive_quiz.documents import (
     AssessmentReport,
@@ -58,11 +58,12 @@ router = APIRouter(prefix="/adaptive-quiz", tags=["Adaptive Quiz"])
 
 def require_quiz_db() -> None:
     if not quiz_db_ready():
+        reason = quiz_db_error() or "Set MONGO_URI in .env and restart."
         raise HTTPException(
             status_code=503,
             detail={
                 "success": False,
-                "message": "Adaptive Quiz database is not connected. Set MONGO_URI in .env and restart.",
+                "message": f"Adaptive Quiz database is not connected. {reason}",
             },
         )
 

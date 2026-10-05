@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 import httpx
-from openai import AzureOpenAI, BadRequestError, OpenAI
+from openai import APIStatusError, AuthenticationError, AzureOpenAI, BadRequestError, OpenAI
 
 from backend.common.config import settings
 
@@ -17,6 +17,11 @@ _client: OpenAI | AzureOpenAI | None = None
 _client_key: tuple[Any, ...] | None = None
 _OLLAMA_USER_CHAR_LIMIT = 10_000
 logger = logging.getLogger(__name__)
+
+# Short names people type in .env → the tag actually installed by `ollama pull`.
+_OLLAMA_MODEL_ALIASES = {
+    "gemma:cloud": "gemma4:cloud",
+}
 
 
 _REASONING_BLOCK_RE = re.compile(
@@ -52,18 +57,28 @@ def _try_parse_json(text: str) -> dict[str, Any] | None:
     return None
 
 
+def _normalize_azure_endpoint(url: str) -> str:
+    u = (url or "").strip()
+    if u.startswith("hhttps://"):
+        u = "https://" + u[len("hhttps://") :]
+    if u and not u.endswith("/"):
+        u += "/"
+    return u
+
+
+def _azure_ready() -> bool:
+    return bool(
+        _normalize_azure_endpoint(settings.azure_openai_endpoint or "")
+        and (settings.azure_openai_api_key or "").strip()
+        and (settings.azure_openai_deployment or "").strip()
+    )
+
+
 def is_configured() -> bool:
     """Return whether the selected provider has its required configuration."""
     if settings.m4_llm_provider == "ollama":
         return bool(settings.ollama_base_url.strip() and settings.m4_ollama_model.strip())
-    return bool(
-        settings.azure_openai_endpoint
-        and settings.azure_openai_endpoint.strip()
-        and settings.azure_openai_api_key
-        and settings.azure_openai_api_key.strip()
-        and settings.azure_openai_deployment
-        and settings.azure_openai_deployment.strip()
-    )
+    return _azure_ready()
 
 
 def _client_and_model() -> tuple[OpenAI | AzureOpenAI, str]:
@@ -71,54 +86,80 @@ def _client_and_model() -> tuple[OpenAI | AzureOpenAI, str]:
     global _client, _client_key
 
     if settings.m4_llm_provider == "ollama":
-        model = settings.m4_ollama_model.strip()
+        import os
+
+        model = _resolve_ollama_model(settings.m4_ollama_model)
         base_url = settings.ollama_base_url.rstrip("/")
-        key = ("ollama", base_url, model, settings.ollama_timeout_seconds)
+        api_key = (os.getenv("OLLAMA_API_KEY") or "").strip() or "ollama"
+        key = ("ollama", base_url, model, settings.ollama_timeout_seconds, api_key)
         if not base_url or not model:
             raise RuntimeError("Ollama is not configured. Set OLLAMA_BASE_URL and M4_OLLAMA_MODEL.")
         if _client is None or _client_key != key:
             _client = OpenAI(
                 base_url=f"{base_url}/v1",
-                api_key="ollama",
+                api_key=api_key,
                 timeout=settings.ollama_timeout_seconds,
                 max_retries=1,
             )
             _client_key = key
         return _client, model
 
+    return _azure_client_and_model()
+
+
+def _azure_client_and_model() -> tuple[OpenAI | AzureOpenAI, str]:
+    global _client, _client_key
+    endpoint = _normalize_azure_endpoint(settings.azure_openai_endpoint or "")
+    deployment = str(settings.azure_openai_deployment or "").strip()
     key = (
         "azure",
-        settings.azure_openai_endpoint,
+        endpoint,
         settings.azure_openai_api_key,
         settings.azure_openai_api_version,
-        settings.azure_openai_deployment,
+        deployment,
     )
-    if not is_configured():
+    if not _azure_ready():
         raise RuntimeError(
             "Azure OpenAI is not configured. Set AZURE_OPENAI_ENDPOINT, "
             "AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT."
         )
     if _client is None or _client_key != key:
-        _client = AzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-            timeout=120.0,
-            max_retries=3,
-        )
+        # Azure AI Foundry / AI Services uses the OpenAI v1 base URL, not the
+        # classic *.openai.azure.com deployment path.
+        if "services.ai.azure.com" in endpoint.lower():
+            _client = OpenAI(
+                base_url=endpoint.rstrip("/") + "/openai/v1/",
+                api_key=settings.azure_openai_api_key,
+                timeout=120.0,
+                max_retries=2,
+            )
+        else:
+            _client = AzureOpenAI(
+                azure_endpoint=endpoint,
+                api_key=settings.azure_openai_api_key,
+                api_version=settings.azure_openai_api_version,
+                timeout=120.0,
+                max_retries=3,
+            )
         _client_key = key
-    return _client, str(settings.azure_openai_deployment)
+    return _client, deployment
 
 
 def _canonical_model_name(name: str) -> str:
     return name.removesuffix(":latest")
 
 
+def _resolve_ollama_model(name: str) -> str:
+    """Map aliases such as gemma:cloud onto the pulled Ollama tag."""
+    raw = (name or "").strip()
+    return _OLLAMA_MODEL_ALIASES.get(raw.lower(), raw)
+
+
 def ping() -> dict[str, Any]:
     """Check provider reachability without raising or loading an Ollama model."""
     provider = settings.m4_llm_provider
     model = (
-        settings.m4_ollama_model
+        _resolve_ollama_model(settings.m4_ollama_model)
         if provider == "ollama"
         else settings.azure_openai_deployment
     )
@@ -139,8 +180,12 @@ def ping() -> dict[str, Any]:
             installed = [
                 item.get("name", "") for item in response.json().get("models", [])
             ]
-            wanted = _canonical_model_name(settings.m4_ollama_model)
-            found = any(_canonical_model_name(name) == wanted for name in installed)
+            wanted = _canonical_model_name(_resolve_ollama_model(settings.m4_ollama_model))
+            found = any(
+                _canonical_model_name(name) == wanted
+                or _canonical_model_name(_resolve_ollama_model(name)) == wanted
+                for name in installed
+            )
             result: dict[str, Any] = {
                 "ok": found,
                 "provider": provider,
@@ -308,41 +353,68 @@ def chat_with_tools(
     raise RuntimeError(f"Model did not return valid structured output for {function['name']}")
 
 
+def _vision_completion(client: OpenAI | AzureOpenAI, model: str, prompt: str, image_b64: str, mime: str, temperature: float) -> str:
+    extras = _ollama_extras() if settings.m4_llm_provider == "ollama" else {}
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime};base64,{image_b64}"},
+                    },
+                ],
+            }
+        ],
+        temperature=temperature,
+        **extras,
+    )
+    if not response.choices:
+        return ""
+    return _strip_reasoning(response.choices[0].message.content or "")
+
+
 def vision_extract(
     prompt: str,
     image_b64: str,
     mime: str = "image/jpeg",
     temperature: float = 0.0,
 ) -> str:
-    """Extract text from an image using the selected provider's vision model."""
+    """Extract text from an image using the selected Member 4 LLM provider."""
     client, model = _client_and_model()
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{mime};base64,{image_b64}"},
-                        },
-                    ],
-                }
-            ],
-            temperature=temperature,
-            **_ollama_extras(),
-        )
-    except BadRequestError as exc:
+        return _vision_completion(client, model, prompt, image_b64, mime, temperature)
+    except AuthenticationError as exc:
         if settings.m4_llm_provider == "ollama":
             raise RuntimeError(
-                f"Ollama model {model!r} does not support vision or rejected the image."
+                f"Ollama returned 401 for {model!r}. For cloud models run "
+                f"`ollama signin` then `ollama pull {model}`."
             ) from exc
+        raise RuntimeError(
+            "Azure rejected the API key (401 Unauthorized). In Azure Portal open the "
+            "resource → Keys and Endpoint, copy KEY 1 and the exact endpoint URL."
+        ) from exc
+    except APIStatusError as exc:
+        label = "Ollama" if settings.m4_llm_provider == "ollama" else "Azure"
+        raise RuntimeError(f"{label} vision request failed: {exc}") from exc
+    except Exception as exc:
+        msg = str(exc).lower()
+        if settings.m4_llm_provider == "azure" and (
+            "getaddrinfo" in msg or "name or service not known" in msg or "11001" in msg
+        ):
+            host = _normalize_azure_endpoint(settings.azure_openai_endpoint or "")
+            raise RuntimeError(
+                f"Azure endpoint hostname does not resolve: {host}. "
+                "Copy the exact Endpoint from Azure Portal (Keys and Endpoint). "
+                "Typical forms: https://YOUR-RESOURCE.openai.azure.com/ "
+                "or https://YOUR-RESOURCE.services.ai.azure.com/"
+            ) from exc
+        if settings.m4_llm_provider == "ollama":
+            raise RuntimeError(f"Ollama vision request failed for {model!r}: {exc}") from exc
         raise
-    if not response.choices:
-        return ""
-    return _strip_reasoning(response.choices[0].message.content or "")
 
 
 def chat_json(system: str, user: str, temperature: float = 0.1) -> dict[str, Any]:

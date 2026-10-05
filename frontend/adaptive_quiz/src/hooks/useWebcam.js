@@ -22,13 +22,10 @@ const EMOTION_DETECT_URL =
 // How often (ms) to sample a frame and call the emotion endpoint.
 // Inference is light (~25-30 ms/frame) and requests are single-flighted, so we can
 // poll fast for low-latency feedback; a tick is skipped while one is still in flight.
-const CAPTURE_INTERVAL_MS  = 800;
-// Smoothing: keep a rolling buffer of the last N frames
+const CAPTURE_INTERVAL_MS  = 600;
 const EXPRESSION_BUFFER_SIZE = 4;
-// Minimum frames in agreement before updating the displayed expression (2 = faster feedback)
 const MIN_AGREEMENT          = 2;
-// Minimum model confidence to accept a frame (valence detectors on 320×240 often peak ~0.15–0.55)
-const MIN_CONFIDENCE         = 0.15;
+const MIN_CONFIDENCE         = 0.12;
 
 const useWebcam = (isActive = true) => {
   const videoRef          = useRef(null);
@@ -46,7 +43,7 @@ const useWebcam = (isActive = true) => {
   const startWebcam = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240, facingMode: 'user' },
+        video: { width: 640, height: 480, facingMode: 'user' },
         audio: false,
       });
       streamRef.current = stream;
@@ -71,13 +68,11 @@ const useWebcam = (isActive = true) => {
     const canvas = canvasRef.current;
     const ctx    = canvas.getContext('2d');
 
-    canvas.width  = video.videoWidth  || 320;
-    canvas.height = video.videoHeight || 240;
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Convert frame to base64
-    // Slightly higher quality helps small-face emotion boxes vs heavy JPEG blur
-    const frameB64 = canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
+    const frameB64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
 
     inFlightRef.current = true;
     try {
@@ -103,21 +98,20 @@ const useWebcam = (isActive = true) => {
         // Reject low-confidence frames — noisy predictions degrade behavioral signals
         if (confidence < MIN_CONFIDENCE) return;
 
-        // Rolling window majority vote — eliminates single-frame noise (lighting
-        // change, head turn, blink). Non-neutral reads need a stronger majority
-        // than neutral so a stray "frustrated" frame can't flip the UI; when in
-        // doubt the expression stays neutral.
+        // Rolling window: prefer a repeating smile/frown over a mixed-in neutral frame.
         const buf = expressionBuffer.current;
         buf.push(rawExpr);
         if (buf.length > EXPRESSION_BUFFER_SIZE) buf.shift();
 
         const counts = buf.reduce((acc, e) => { acc[e] = (acc[e] || 0) + 1; return acc; }, {});
-        const [dominant, votes] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-        const needed = dominant === 'neutral' ? MIN_AGREEMENT : MIN_AGREEMENT + 1;
-        if (votes >= needed) {
+        const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        const [dominant, votes] = ranked[0];
+        const affect = ranked.find(([e]) => e !== 'neutral');
+        // Prefer a repeating smile/frown even if one frame in the window is neutral.
+        if (affect && affect[1] >= MIN_AGREEMENT) {
+          setCurrentExpression(affect[0]);
+        } else if (votes >= MIN_AGREEMENT) {
           setCurrentExpression(dominant);
-        } else if (buf.filter(e => e === 'neutral').length >= MIN_AGREEMENT) {
-          setCurrentExpression('neutral');
         }
       } else {
         console.warn(`[useWebcam] /detect-emotion returned ${res.status}; keeping last expression`);

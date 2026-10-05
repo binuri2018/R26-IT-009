@@ -25,10 +25,31 @@ _PERSONA_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "
 _ENCODER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "encoder.pkl")
 
 
+def _llm_text(response):
+    """Flatten LangChain message content (string, blocks, or reasoning)."""
+    parts = []
+    content = getattr(response, "content", response)
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict):
+                parts.append(str(block.get("text") or block.get("content") or ""))
+            else:
+                parts.append(str(block))
+    elif content:
+        parts.append(str(content))
+    extra = getattr(response, "additional_kwargs", None) or {}
+    reasoning = extra.get("reasoning_content")
+    if reasoning:
+        parts.append(str(reasoning))
+    return "\n".join(p for p in parts if str(p).strip())
+
+
 def _parse_json_response(content):
     """Pull the first usable JSON object out of messy LLM text."""
-    if isinstance(content, list):
-        raw = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+    if hasattr(content, "content"):
+        raw = _llm_text(content)
+    elif isinstance(content, list):
+        raw = _llm_text(content)
     else:
         raw = str(content)
     raw = raw.strip()
@@ -61,6 +82,61 @@ def _parse_json_response(content):
     return best
 
 
+def _passage_is_usable(text: str) -> bool:
+    """Drop running headers / page numbers that are not real syllabus sentences."""
+    t = re.sub(r"\s+", " ", text or "").strip()
+    if len(t) < 90:
+        return False
+    letters = sum(ch.isalpha() for ch in t)
+    digits = sum(ch.isdigit() for ch in t)
+    if letters < 60:
+        return False
+    if digits >= 3 and letters / max(len(t), 1) < 0.55:
+        return False
+    return True
+
+
+def _trim_context(text: str, limit: int = 3200) -> str:
+    t = (text or "").strip()
+    if len(t) <= limit:
+        return t
+    return t[:limit].rsplit("\n", 1)[0] or t[:limit]
+
+
+def _faiss_syllabus(topic: str, diagnostic: str = "") -> tuple[str, list]:
+    """Real PDF chunks from the Voice Tutor FAISS index (Chroma often only has headers)."""
+    try:
+        from backend.common.retrieval import retrieve
+        from backend.main import get_store
+
+        store = get_store()
+        hits = retrieve(store, f"{topic}. {diagnostic}".strip(), k=6)
+    except Exception as exc:
+        print(f"FAISS syllabus lookup skipped: {exc}", flush=True)
+        return "", []
+
+    context_parts = []
+    sources = []
+    for h in hits:
+        text = (h.get("text") or "").strip()
+        if not _passage_is_usable(text):
+            continue
+        passage = text[:700]
+        page = h.get("page_start")
+        label = h.get("topic") or h.get("source_file") or "syllabus"
+        context_parts.append(f"--- {label} | Page: {page} ---\n{passage}")
+        sources.append({
+            "filename": h.get("source_file"),
+            "chapter": h.get("topic"),
+            "page": page,
+            "similarity": f"{(h.get('score') or 0) * 100:.1f}%",
+            "snippet": passage[:120].replace("\n", " ") + "...",
+        })
+        if len(sources) >= 4:
+            break
+    return "\n".join(context_parts), sources
+
+
 def _story_is_thin(story):
     """True if SHOW is a stub instead of a 3-paragraph scene."""
     text = (story or "").strip()
@@ -69,6 +145,44 @@ def _story_is_thin(story):
     words = len(text.split())
     breaks = text.count("\n\n")
     return words < 160 or breaks < 2
+
+
+def _fallback_chapter(topic, context, sources, error=None):
+    """Build a syllabus-grounded chapter if the LLM returns nothing usable."""
+    if error:
+        print(f"Using textbook fallback after LLM failure: {error}", flush=True)
+    passage = (context or "").strip()
+    if not passage:
+        passage = (
+            f"The chapter on {topic} is in the Grade 10–11 science textbook. "
+            "Open that lesson and read the definitions, examples, and any given formulae."
+        )
+    excerpt = passage[:1200].strip()
+    return {
+        "science_intro": {
+            "concept_statement": topic,
+            "explanation": excerpt[:800],
+            "equations": [],
+            "real_world_note": "Use the textbook extract in this lesson as the facts to remember.",
+        },
+        "story": (
+            f"Nimali sits at a classroom desk in Colombo with her science book open to {topic}. "
+            "Her teacher has asked the class to explain the idea in ordinary language before they copy notes.\n\n"
+            f"{excerpt}\n\n"
+            "She underlines the key terms, says the law out loud once, and writes a one-sentence summary "
+            "so the textbook wording stays attached to the scene she just imagined."
+        ),
+        "key_definitions": [],
+        "key_equations": [],
+        "exam_bullets": [
+            f"Recall the textbook statement of {topic}.",
+            "Use syllabus terms rather than informal nicknames in answers.",
+            "Link one everyday Sri Lankan example to the definition.",
+        ],
+        "quiz_topic": topic,
+        "sources": sources or [],
+    }
+
 
 # Maps human-readable book names to ChromaDB filename metadata values
 BOOK_FILENAME_MAP = {
@@ -150,13 +264,10 @@ class StoryEngine:
             return fallback.get(interest, "Adventure")
 
     def get_story_context(self, topic, book_name=None):
-        """Searches the vector DB for the most relevant textbook snippets.
-        Optionally filters by book (grade-level) to avoid cross-grade results.
-        """
-        print(f"\nSearching textbook database for: '{topic}'...")
+        """Searches Chroma, skips header-only pages, then fills gaps from FAISS."""
+        print(f"\nSearching textbook database for: '{topic}'...", flush=True)
 
-        # Enough syllabus text to write a real story; not the full 8-chunk window
-        search_kwargs = {"k": 6}
+        search_kwargs = {"k": 10}
         if book_name and book_name in BOOK_FILENAME_MAP:
             filename = BOOK_FILENAME_MAP[book_name]
             search_kwargs["filter"] = {"filename": filename}
@@ -166,28 +277,40 @@ class StoryEngine:
         context = ""
         sources = []
         for doc, score in results_with_scores:
-            # Convert ChromaDB distance to a rough similarity percentage
             similarity_pct = max(0.0, min(100.0, (1.0 - (score / 2.0)) * 100.0))
-            
             if similarity_pct < 55.0 and len(sources) >= 2:
                 continue
             if len(sources) >= 4:
                 break
 
+            passage = (doc.page_content or "").strip()
+            if not _passage_is_usable(passage):
+                continue
+            passage = passage[:700]
             meta = doc.metadata
-            passage = (doc.page_content or "")[:800]
             source_label = f"{meta.get('filename')} | Chapter: {meta.get('chapter')} | Page: {meta.get('page_number')}"
             context += f"\n--- {source_label} ---\n{passage}\n"
-            
             sources.append({
-                "filename": meta.get('filename'),
-                "chapter": meta.get('chapter'),
-                "page": meta.get('page_number'),
+                "filename": meta.get("filename"),
+                "chapter": meta.get("chapter"),
+                "page": meta.get("page_number"),
                 "similarity": f"{similarity_pct:.1f}%",
-                "snippet": doc.page_content[:120].replace('\n', ' ') + "..."
+                "snippet": passage[:120].replace("\n", " ") + "...",
             })
 
-        return context, sources
+        extra_ctx, extra_src = _faiss_syllabus(topic)
+        if extra_ctx:
+            context = (extra_ctx + "\n" + context).strip()
+            seen = {(s.get("filename"), s.get("page"), s.get("snippet")) for s in extra_src}
+            merged = list(extra_src)
+            for s in sources:
+                key = (s.get("filename"), s.get("page"), s.get("snippet"))
+                if key not in seen:
+                    merged.append(s)
+                    seen.add(key)
+            sources = merged
+
+        return _trim_context(context, 3200), sources[:6]
 
     def generate_question(self, topic):
         """Generates a standalone pre/post concept-check question."""
@@ -223,10 +346,12 @@ Return ONLY raw JSON. No markdown. Format:
             sources          = pre_fetched_sources or []
         else:
             syllabus_context, sources = self.get_story_context(
-                f"Topic: {topic}. Focus: {diagnostic_query}", book_name
+                f"{topic}. {diagnostic_query}", book_name
             )
+        if LLM_PROVIDER == "groq":
+            syllabus_context = _trim_context(syllabus_context, 2800)
 
-        print(f"Generating story for '{topic}' with theme '{student_theme}'...")
+        print(f"Generating story for '{topic}' with theme '{student_theme}'...", flush=True)
 
         prompt = PromptTemplate(
             input_variables=["theme","topic","diagnostic","context","interest","aspiration","struggle_level","length_nudge"],
@@ -296,10 +421,10 @@ Rules:
                     "struggle_level": struggle_level,
                     "length_nudge": length_nudge,
                 })
-                data = _parse_json_response(response.content)
+                data = _parse_json_response(response)
                 if not data:
-                    snippet = str(response.content)[:400].replace("\n", " ")
-                    print(f"Could not parse JSON. Snippet: {snippet}")
+                    snippet = _llm_text(response)[:400].replace("\n", " ")
+                    print(f"Could not parse JSON. Snippet: {snippet}", flush=True)
                     last_error = ValueError("unparseable JSON")
                     continue
                 last_data = data
@@ -320,10 +445,13 @@ Rules:
                 return data
             except Exception as e:
                 last_error = e
-                print(f"Generation attempt failed: {e}")
-        if last_data:
+                print(f"Generation attempt failed: {e}", flush=True)
+                err = str(e).lower()
+                if "413" in err or "too large" in err or "tokens per minute" in err:
+                    syllabus_context = _trim_context(syllabus_context, 1600)
+        if last_data and (last_data.get("story") or "").strip():
             last_data["sources"] = sources
             return last_data
         if last_error:
-            print(f"JSON parse error: {last_error}")
-        return None
+            print(f"JSON parse error: {last_error}", flush=True)
+        return _fallback_chapter(topic, syllabus_context, sources, last_error)

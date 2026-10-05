@@ -55,6 +55,12 @@ class LlmClientProviderTests(unittest.TestCase):
             max_retries=1,
         )
 
+    def test_gemma_cloud_alias_resolves_to_pulled_tag(self) -> None:
+        from backend.components.knowledge_maps import llm_client
+
+        self.assertEqual(llm_client._resolve_ollama_model("gemma:cloud"), "gemma4:cloud")
+        self.assertEqual(llm_client._resolve_ollama_model("gemma4:cloud"), "gemma4:cloud")
+
     def test_tool_call_falls_back_to_json_schema_when_model_returns_prose(self) -> None:
         from backend.common.config import settings
         from backend.components.knowledge_maps import llm_client
@@ -169,7 +175,7 @@ class LlmClientProviderTests(unittest.TestCase):
         self.assertIs(client, azure_client)
         self.assertEqual(model, "gpt-4o")
         constructor.assert_called_once_with(
-            azure_endpoint="https://azure.test",
+            azure_endpoint="https://azure.test/",
             api_key="test-key",
             api_version=settings.azure_openai_api_version,
             timeout=120.0,

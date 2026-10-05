@@ -277,7 +277,13 @@ async function generateStory() {
       body: JSON.stringify(body),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.detail || r.statusText);
+    if (!r.ok) {
+      const detail = data.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+        : (detail || r.statusText);
+      throw new Error(msg);
+    }
 
     $("theme-pill").textContent = `Theme: ${data.theme || "—"}`;
     renderIntro(data.science_intro || {});

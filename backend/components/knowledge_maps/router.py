@@ -178,7 +178,14 @@ def _map_error(exc: Exception) -> HTTPException:
                     f"Run `ollama serve` and `ollama pull {settings.m4_ollama_model}`."
                 ),
             )
-        return HTTPException(status_code=502, detail=f"Azure OpenAI request failed: {exc!s}")
+        return HTTPException(
+            status_code=502,
+            detail=(
+                "Azure OpenAI is not reachable. Check AZURE_OPENAI_ENDPOINT in .env "
+                "(copy the exact URL from Azure Portal → Keys and Endpoint). "
+                f"Detail: {exc!s}"
+            ),
+        )
     if isinstance(exc, RuntimeError):
         return HTTPException(status_code=501, detail=str(exc))
     if isinstance(exc, httpx.HTTPError):

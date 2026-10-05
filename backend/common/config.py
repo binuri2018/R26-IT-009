@@ -41,12 +41,11 @@ class Settings(BaseSettings):
 
     # Ollama fallback
     ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_chat_model: str = "mistral"
+    ollama_chat_model: str = "llama3.1"
     # First local inference after pull/start can exceed 120s while the model loads into RAM.
     ollama_timeout_seconds: float = 600.0
 
-    # Member 4 — local-first LLM. Azure remains available as an optional
-    # full-provider fallback for research comparisons and operations.
+    # Member 4 — Azure OpenAI / AI Foundry when M4_LLM_PROVIDER=azure.
     m4_llm_provider: Literal["ollama", "azure"] = "ollama"
     m4_ollama_model: str = "gemma4:cloud"
 
@@ -91,8 +90,8 @@ class Settings(BaseSettings):
     m4_web_search_timeout_seconds: float = 8.0
 
     # ── Adaptive Quiz component ──────────────────────────────────────────────
-    # MongoDB connection string (Beanie/Motor). When unset the quiz component
-    # stays dormant and the rest of the app is unaffected.
+    # MongoDB connection string (Beanie + PyMongo async). When unset the quiz
+    # component stays dormant and the rest of the app is unaffected.
     mongo_uri: str | None = None
     jwt_secret: str = "change-me-in-production"
     jwt_expire_days: int = 7
@@ -104,13 +103,12 @@ class Settings(BaseSettings):
     emotion_model_path: Path = Path("backend/model/best.pt")
     # Learning-state RandomForest classifier (joblib).
     quiz_model_path: Path = Path("backend/components/adaptive_quiz/models/learning_state_model.pkl")
-    emotion_predict_imgsz: int = 256
-    emotion_yolo_conf: float = 0.12
-    # Any winning class below this confidence -> report "neutral" (unsure, don't guess).
-    emotion_min_conf: float = 0.45
-    # A "negative"/frustrated read needs to be this confident before we surface it —
-    # the valence model leans negative on noisy / poorly-lit frames.
-    emotion_negative_min_conf: float = 0.60
+    emotion_predict_imgsz: int = 320
+    emotion_yolo_conf: float = 0.10
+    # YOLO valence boxes on a webcam face often peak ~0.18–0.50, not 0.45+.
+    emotion_min_conf: float = 0.18
+    # Slightly higher than happy so dim/noisy frames don't always fire a hint.
+    emotion_negative_min_conf: float = 0.22
     # Optional JSON object: raw class name -> expression label.
     emotion_label_map: str = ""
 

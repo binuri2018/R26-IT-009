@@ -34,7 +34,7 @@ def _load_model() -> dict:
                 "Run: python modules/train.py"
             )
         _model_payload = joblib.load(MODEL_PATH)
-        print(f"✅ Model loaded from {MODEL_PATH}")
+        print(f"Model loaded from {MODEL_PATH}")
     return _model_payload
 
 
