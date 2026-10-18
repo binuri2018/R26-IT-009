@@ -24,7 +24,6 @@ import HintBox               from '../components/assessment/HintBox';
 import TheoryExplanation     from '../components/assessment/TheoryExplanation';
 import WebcamCapture         from '../components/emotion/WebcamCapture';
 import { useVoice } from '../context/VoiceContext';
-import GamificationBar from '../components/assessment/GamificationBar';
 import BrainBreakPuzzle from '../components/research/BrainBreakPuzzle';
 import MemoryMatchPuzzle from '../components/research/MemoryMatchPuzzle';
 import MathBlitzPuzzle from '../components/research/MathBlitzPuzzle';
@@ -56,11 +55,6 @@ const AssessmentPage = () => {
   const timer  = useTimer();
   const webcam = useWebcam(true); // webcam always running
 
-  // Gamification State
-  const [hp, setHp] = useState(100);
-  const [xp, setXp] = useState(0);
-  const [rank] = useState(1);
-
   // Question-level state
   const [selectedAnswer,  setSelectedAnswer]  = useState('');
   const [answerChanges,   setAnswerChanges]   = useState(0);
@@ -87,10 +81,8 @@ const AssessmentPage = () => {
   }, [isAssessmentDone, showPuzzle]);
 
   const handlePuzzleWin = () => {
-    setHp(100);
-    setXp(prev => prev + 50);
     setShowPuzzle(false);
-    speak("Your energy is back at maximum! You're ready to focus again.");
+    speak("Great job! You're ready to focus again.");
   };
 
   const handlePuzzleFail = () => {
@@ -119,13 +111,9 @@ const AssessmentPage = () => {
     const responseTime  = timer.elapsed;
     const expression    = webcam.currentExpression;
 
-    // Update HP and XP (Gamification Logic)
     if (isCorrect) {
-      setXp(prev => prev + 25);
-      setHp(prev => Math.min(100, prev + 10));
       speak("Correct! Well done.");
     } else {
-      setHp(prev => Math.max(0, prev - 15));
       speak("Not quite right. Let's look at the hint.");
     }
 
@@ -388,7 +376,7 @@ const AssessmentPage = () => {
             <span className="lesson-chip">📖 {lesson?.title}</span>
             <span className="level-chip">{getLevelLabel(currentLevel)}</span>
             {submitted && (
-              <span className="stat-chip" style={{ background: 'rgba(99,102,241,0.05)', borderColor: 'rgba(99,102,241,0.2)', color: '#6366f1' }}>
+              <span className="stat-chip" style={{ background: 'rgba(14, 124, 102,0.05)', borderColor: 'rgba(14, 124, 102,0.2)', color: '#0E7C66' }}>
                 🧠 Load: {Math.round(cognitiveLoad)}%
               </span>
             )}
@@ -397,14 +385,6 @@ const AssessmentPage = () => {
             <Timer elapsed={timer.elapsed} />
           </div>
         </div>
-
-        {/* ── Gamification ── */}
-        <GamificationBar 
-        hp={hp} 
-        xp={xp} 
-        level={rank} 
-        onRecharge={triggerBrainBreak}
-      />
 
         {/* ── Progress ── */}
         <LevelProgressBar

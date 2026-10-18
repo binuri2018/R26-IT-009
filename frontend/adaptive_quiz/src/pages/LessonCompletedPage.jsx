@@ -11,6 +11,7 @@ import { getAllLessons } from '../api/lessonApi';
 import { getAssessmentQuestions, getAdaptiveAssessmentQuestions } from '../api/assessmentApi';
 import { getStudentHistory } from '../api/responseApi';
 import { useAssessment } from '../context/AssessmentContext';
+import Logo from '../components/brand/Logo';
 import './LessonCompletedPage.css';
 
 const CHOICE_KEY = 'stemLessonId';   // last picked lesson, also used by ReportPage
@@ -160,158 +161,158 @@ const LessonCompletedPage = () => {
     }
   };
 
+  const signOut = () => {
+    localStorage.removeItem('stemToken');
+    localStorage.removeItem('stemStudent');
+    window.location.assign('/');   // back to the STEM Learn LK main dashboard
+  };
+
+  const firstName = (student?.name || '').trim().split(/\s+/)[0] || 'there';
+  const initials = (student?.name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+  const topbar = (
+    <header className="lc-topbar">
+      <Logo />
+      {student && (
+        <div className="lc-user">
+          <span className="lc-avatar" aria-hidden="true">{initials}</span>
+          <span className="lc-user-meta"><strong>{student.name}</strong><small>{student.studentId}</small></span>
+          <button type="button" className="lc-signout" onClick={signOut}>Sign out</button>
+        </div>
+      )}
+    </header>
+  );
+
   if (loading) return (
     <div className="lc-page">
+      {topbar}
       <div className="lc-loader"><div className="spin-ring"/><p>Loading lessons…</p></div>
     </div>
   );
 
   const ready = !!lesson && lesson.questionCount > 0;
+  const lastReport = lastForLesson || pastByLesson[0];
 
   return (
     <div className="lc-page">
-      <div className="lc-card">
-        {/* Congrats banner */}
-        <div className="lc-banner">
-          <div className="lc-trophy">🏆</div>
-          <h1 className="lc-title">Lesson Complete!</h1>
-          <p className="lc-subtitle">Great work! Now let's see how well you've understood the material.</p>
-        </div>
+      {topbar}
 
-        {/* Student info */}
-        {student && (
-          <div className="lc-student-chip">
-            <span>👤</span>
-            <span>{student.name} — {student.studentId}</span>
-          </div>
-        )}
-
-        {/* Returning student: jump straight to existing report / study plan without redoing the quiz */}
-        {(lastForLesson || pastByLesson[0]) && (
-          <button
-            type="button"
-            className="lc-view-plan-link"
-            onClick={() => openReport(lastForLesson || pastByLesson[0])}
-            style={{
-              display: 'block', margin: '0 auto 16px', background: 'none', border: 'none',
-              color: '#6366f1', textDecoration: 'underline', cursor: 'pointer', fontSize: '14px',
-            }}
-          >
-            📊 View My Last Report &amp; Study Plan
-          </button>
-        )}
-
-        <button
-          type="button"
-          className="lc-view-plan-link"
-          onClick={() => navigate('/practice')}
-          style={{
-            display: 'block', margin: '0 auto 16px', background: 'none', border: 'none',
-            color: '#22c55e', textDecoration: 'underline', cursor: 'pointer', fontSize: '14px',
-          }}
-        >
-          📝 Practice Mode — Generate a Quiz from Your Own Notes
-        </button>
-
-        {/* Adaptive mode: show previous weak areas if available */}
-        {previousWeakAreas.length > 0 && (
-          <div className="lc-adaptive-banner">
-            <div className="lc-adaptive-title">
-              🎯 Adaptive Mode — Focus on Weak Areas
-            </div>
-            <p className="lc-adaptive-note">
-              Based on your last attempt ({previousScore !== null ? `${Math.round(previousScore)}%` : ''}), these concepts will be prioritised in this quiz:
-            </p>
-            <div className="lc-weak-tags">
-              {previousWeakAreas.map((area) => (
-                <span key={area} className="lc-weak-tag">📌 {area}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Lesson picker: Grade → textbook part → chapter */}
-        <div className="lc-picker">
-          <h3>📚 Choose your lesson</h3>
-
-          <div className="lc-seg" role="group" aria-label="Grade">
-            {groups.map(g => (
-              <button key={g} type="button" className={grade === g ? 'active' : ''} onClick={() => pickGrade(g)}>
-                {g === OTHER ? 'Other' : `Grade ${g}`}
-              </button>
-            ))}
-          </div>
-
-          {grade !== OTHER && (
-            <div className="lc-seg" role="group" aria-label="Textbook part">
-              {[1, 2].map(p => (
-                <button key={p} type="button" className={part === p ? 'active' : ''} onClick={() => pickPart(p)}>
-                  📖 {PART_LABEL[p]}
+      <main className="lc-layout">
+        {/* ── Left column ── */}
+        <section className="lc-main">
+          <div className="lc-hero">
+            <span className="lc-eyebrow">Lesson complete</span>
+            <h1>Nice work, {firstName}. Ready to check what you learned?</h1>
+            <p>Pick a chapter and take a short three-level quiz. You'll get hints when you're stuck and a study plan at the end.</p>
+            <div className="lc-actions">
+              {lastReport && (
+                <button type="button" className="lc-btn lc-btn--secondary" onClick={() => openReport(lastReport)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16V9M10 16V4M16 16v-5" /></svg>
+                  View my last report &amp; study plan
                 </button>
-              ))}
+              )}
+              <button type="button" className="lc-btn lc-btn--ghost" onClick={() => navigate('/practice')}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h7l3 3v11H5z" /><path d="M8 10h5M8 13h3" /></svg>
+                Practice with my own notes
+              </button>
+            </div>
+          </div>
+
+          {/* Adaptive mode: previous weak areas */}
+          {previousWeakAreas.length > 0 && (
+            <div className="lc-focus">
+              <div className="lc-focus-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" /><circle cx="10" cy="10" r="3.5" /><circle cx="10" cy="10" r="0.8" /></svg>
+              </div>
+              <div>
+                <h3>Adaptive mode is on</h3>
+                <p>Your last attempt scored {previousScore !== null ? `${Math.round(previousScore)}%` : '—'}. This quiz will focus on:</p>
+                <div className="lc-weak-tags">
+                  {previousWeakAreas.map(area => <span key={area} className="lc-weak-tag">{area}</span>)}
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="lc-chapters">
-            {chapters.map(l => (
-              <button
-                key={l.lessonId}
-                type="button"
-                className={`lc-chapter ${l.lessonId === lessonId ? 'selected' : ''}`}
-                onClick={() => pickLesson(l)}
-              >
-                <span className="lc-chapter-no">{l.chapterNo ?? '•'}</span>
-                <span className="lc-chapter-title">{l.title}</span>
-                {l.questionCount > 0
-                  ? <span className="lc-chapter-count">{l.questionCount} questions</span>
-                  : <span className="lc-chapter-soon">Coming soon</span>}
-              </button>
-            ))}
-          </div>
-        </div>
+          {/* Lesson picker: Grade → textbook part → chapter */}
+          <div className="lc-panel">
+            <div className="lc-panel-head">
+              <h2>Choose a chapter</h2>
+              <div className="lc-seg" role="group" aria-label="Grade">
+                {groups.map(g => (
+                  <button key={g} type="button" className={grade === g ? 'active' : ''} onClick={() => pickGrade(g)}>
+                    {g === OTHER ? 'Other' : `Grade ${g}`}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Lesson card */}
-        {lesson && (
-          <div className="lc-lesson-info">
-            <div className="lc-lesson-badge">{lesson.subject}</div>
-            <h2 className="lc-lesson-title">{lesson.title}</h2>
-            <p className="lc-lesson-desc">{lesson.description}</p>
-            <div className="lc-meta">
-              <span>📚 {lesson.gradeLevel}</span>
-              <span>⏱ ~{lesson.estimatedDuration} min</span>
+            {grade !== OTHER && (
+              <div className="lc-tabs" role="group" aria-label="Textbook part">
+                {[1, 2].map(p => (
+                  <button key={p} type="button" className={part === p ? 'active' : ''} onClick={() => pickPart(p)}>
+                    Textbook {PART_LABEL[p]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="lc-chapters">
+              {chapters.map(l => (
+                <button
+                  key={l.lessonId}
+                  type="button"
+                  className={`lc-chapter ${l.lessonId === lessonId ? 'selected' : ''} ${l.questionCount ? '' : 'soon'}`}
+                  onClick={() => pickLesson(l)}
+                >
+                  <span className="lc-chapter-no">{l.chapterNo ?? '•'}</span>
+                  <span className="lc-chapter-title">{l.title}</span>
+                  {l.questionCount > 0
+                    ? <span className="lc-chapter-count">{l.questionCount} questions</span>
+                    : <span className="lc-chapter-soon">Coming soon</span>}
+                </button>
+              ))}
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Assessment info */}
-        <div className="lc-assessment-info">
-          <h3>What's Next?</h3>
-          <div className="lc-levels">
-            {[
-              { lvl: 1, icon: '🟢', label: 'Level 1', desc: '3 Basic Questions' },
-              { lvl: 2, icon: '🟡', label: 'Level 2', desc: '3 Concept Questions' },
-              { lvl: 3, icon: '🔴', label: 'Level 3', desc: '3 Advanced Questions' },
-            ].map(l => (
-              <div className="lc-level-item" key={l.lvl}>
-                <span>{l.icon}</span>
-                <div>
-                  <strong>{l.label}</strong>
-                  <span>{l.desc}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="lc-note">💡 The system will monitor your responses and facial expressions to provide personalised support.</p>
-        </div>
+        {/* ── Right column: selected lesson + start ── */}
+        <aside className="lc-side">
+          {lesson && (
+            <div className="lc-summary">
+              <span className="lc-subject">{lesson.subject}</span>
+              <h2>{lesson.title}</h2>
+              <p className="lc-summary-desc">{lesson.description}</p>
+              <dl className="lc-facts">
+                <div><dt>Grade</dt><dd>{lesson.gradeLevel}</dd></div>
+                <div><dt>Time</dt><dd>~{lesson.estimatedDuration} min</dd></div>
+                <div><dt>Questions</dt><dd>9 of {lesson.questionCount || 0}</dd></div>
+              </dl>
 
-        {error && <div className="lc-error">⚠️ {error}</div>}
+              <h3 className="lc-steps-title">How the quiz works</h3>
+              <ol className="lc-steps">
+                <li className="lvl-1"><span>1</span><div><strong>Basic</strong><small>3 recall questions</small></div></li>
+                <li className="lvl-2"><span>2</span><div><strong>Concept</strong><small>3 understanding questions</small></div></li>
+                <li className="lvl-3"><span>3</span><div><strong>Advanced</strong><small>3 application questions</small></div></li>
+              </ol>
 
-        <button id="btn-start-assessment" className="btn-start" onClick={handleStartAssessment} disabled={!ready || starting}>
-          {starting
-            ? <><span className="spinner-sm"/>Preparing Assessment…</>
-            : ready ? '🚀 Start Assessment' : '⏳ Questions for this lesson are coming soon'}
-        </button>
-      </div>
+              <p className="lc-note">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="6" width="10" height="8" rx="2" /><path d="m13 9 4-2v6l-4-2" /></svg>
+                Your camera and answers help the system offer hints and support while you work.
+              </p>
+
+              {error && <div className="lc-error">{error}</div>}
+
+              <button id="btn-start-assessment" className="btn-start" onClick={handleStartAssessment} disabled={!ready || starting}>
+                {starting
+                  ? <><span className="spinner-sm"/>Preparing your quiz…</>
+                  : ready ? <>Start assessment<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" /></svg></>
+                          : 'Questions coming soon'}
+              </button>
+            </div>
+          )}
+        </aside>
+      </main>
     </div>
   );
 };

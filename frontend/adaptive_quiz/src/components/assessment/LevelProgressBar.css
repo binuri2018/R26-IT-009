@@ -37,10 +37,10 @@
 }
 
 .level-step.active {
-  border-color: #6366f1;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-color: #0E7C66;
+  background: linear-gradient(135deg, #0B6553, #13866F);
   color: #fff;
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 16px rgba(14, 124, 102, 0.5);
 }
 
 .level-step.done {
@@ -86,7 +86,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #9333ea);
+  background: linear-gradient(90deg, #0E7C66, #0B6553);
   border-radius: 99px;
   transition: width 0.5s ease;
 }

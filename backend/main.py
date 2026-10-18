@@ -189,6 +189,12 @@ def serve_narrative() -> FileResponse:
 
 _quiz_dist = _frontend_dir / "adaptive_quiz" / "dist"
 
+# index.html must always be re-checked, or browsers keep showing an old build (it
+# points at the old hashed bundles) until a hard refresh. Files under assets/ have
+# a content hash in their name, so they can be cached forever.
+_NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+_IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
+
 
 @app.get("/adaptive-quiz", include_in_schema=False)
 @app.get("/adaptive-quiz/{resource_path:path}", include_in_schema=False)
@@ -201,10 +207,11 @@ def serve_quiz(resource_path: str = "") -> FileResponse:
     if resource_path:
         candidate = (_quiz_dist / resource_path).resolve()
         if _quiz_dist in candidate.parents and candidate.is_file():
-            return FileResponse(candidate)
+            hashed = candidate.parent == (_quiz_dist / "assets").resolve()
+            return FileResponse(candidate, headers=_IMMUTABLE if hashed else _NO_CACHE)
     index = _quiz_dist / "index.html"
     if index.is_file():
-        return FileResponse(index)
+        return FileResponse(index, headers=_NO_CACHE)
     raise HTTPException(
         status_code=503,
         detail=(

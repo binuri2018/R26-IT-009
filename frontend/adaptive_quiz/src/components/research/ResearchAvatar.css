@@ -66,7 +66,7 @@
   position: absolute;
   inset: -5px;
   border-radius: 35px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 124, 102, 0.4) 0%, transparent 70%);
   transition: all 0.8s ease;
   z-index: -1;
   opacity: 0.5;
@@ -111,7 +111,7 @@
 
 /* Thinking State */
 .thinking .eye { 
-  background: #7c3aed; 
+  background: #13866F; 
   width: 12px;
   height: 4px;
   border-radius: 4px;
@@ -129,7 +129,7 @@
 
 /* Neutral State */
 .neutral .avatar-status-glow { 
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 124, 102, 0.3) 0%, transparent 70%);
 }
 
 /* ── Bubble Aesthetics ── */

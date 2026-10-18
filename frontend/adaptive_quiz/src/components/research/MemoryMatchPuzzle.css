@@ -45,7 +45,7 @@
 }
 
 .card-back {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(167, 139, 250, 0.2));
+  background: linear-gradient(135deg, rgba(14, 124, 102, 0.2), rgba(167, 139, 250, 0.2));
   transform: rotateY(180deg);
 }
 

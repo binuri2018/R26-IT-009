@@ -4,7 +4,11 @@ import { useVoice } from '../context/VoiceContext';
 import { getExpressionEmoji } from '../utils/quizLogic';
 import { getTeacherKey, setTeacherKey, clearTeacherKey } from '../utils/teacherAuth';
 import QuestionGeneratorPanel from '../components/teacher/QuestionGeneratorPanel';
+import Logo from '../components/brand/Logo';
+import LottiePlayer from '../components/brand/LottiePlayer';
+import teacherFlowAnimation from '../assets/lottie/teacher-flow.json';
 import './ReportPage.css'; // Reuse report styles
+import './TeacherDashboard.css';
 
 const TeacherDashboard = () => {
   const [reports, setReports] = useState([]);
@@ -75,72 +79,102 @@ const TeacherDashboard = () => {
 
   if (needsKey) {
     return (
-      <div className="report-page" style={{ padding: '60px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <form onSubmit={handleKeySubmit} style={{
-          background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(15,23,42,0.05)', borderRadius: '16px',
-          padding: '40px 32px', maxWidth: '360px', width: '100%', textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔑</div>
-          <h2 style={{ color: '#111827', fontSize: '20px', margin: '0 0 8px' }}>Teacher Access</h2>
-          <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 20px' }}>
-            Enter the shared teacher key to view classroom research data.
-          </p>
-          <input
-            type="password"
-            autoFocus
-            value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
-            placeholder="Teacher access key"
-            style={{
-              width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px',
-              border: '1px solid #c2ccd9', background: 'rgba(15,23,42,0.08)', color: '#111827',
-              fontSize: '14px', marginBottom: '12px',
-            }}
-          />
-          {keyError && <p style={{ color: '#dc2626', fontSize: '12px', margin: '0 0 12px' }}>{keyError}</p>}
-          <button type="submit" style={{
-            width: '100%', padding: '10px', borderRadius: '8px', border: 'none',
-            background: '#6366f1', color: '#fff', fontWeight: '700', fontSize: '14px', cursor: 'pointer',
-          }}>
-            Continue
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            style={{ marginTop: '14px', background: 'transparent', border: 'none', color: '#9ca3af', fontSize: '12px', cursor: 'pointer' }}
-          >
-            ← Return to Main Login
-          </button>
+      <div className="th-gate">
+        <form onSubmit={handleKeySubmit} className="th-gate-card">
+          <Logo />
+          <h1>Teacher workspace</h1>
+          <p>Enter the shared teacher key to generate questions and view your class's results.</p>
+          <label htmlFor="teacher-key">Teacher access key</label>
+          <input id="teacher-key" type="password" autoFocus value={keyInput}
+                 onChange={(e) => setKeyInput(e.target.value)} placeholder="••••••••" />
+          {keyError && <p className="th-gate-error">{keyError}</p>}
+          <button type="submit" className="th-gate-submit">Continue</button>
+          <button type="button" className="th-gate-back" onClick={() => navigate('/login')}>Back to student sign-in</button>
         </form>
       </div>
     );
   }
 
-  return (
-    <div className="report-page" style={{ padding: '60px 24px' }}>
-      <div className="report-container" style={{ maxWidth: '1100px' }}>
+  // Class-wide numbers for the hero
+  const studentAvgs = Object.values(reports.reduce((acc, r) => {
+    (acc[r.studentId] = acc[r.studentId] || []).push(r.totalScore || 0);
+    return acc;
+  }, {})).map(scores => scores.reduce((x, y) => x + y, 0) / scores.length);
+  const classAvg = reports.length ? Math.round(reports.reduce((x, r) => x + (r.totalScore || 0), 0) / reports.length) : 0;
+  const needSupport = studentAvgs.filter(avg => avg < 50).length;
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Back to the STEM Learn LK main dashboard (outside this app)
+  const signOut = () => { clearTeacherKey(); window.location.assign('/'); };
 
-        {/* Header Section */}
-        <div className="report-header" style={{ marginBottom: '50px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏫</div>
-          <h1 className="report-title" style={{ fontSize: '36px', letterSpacing: '-0.5px' }}>Teacher Dashboard</h1>
-          <p className="report-meta" style={{ fontSize: '16px', color: '#6b7280' }}>
-            Real-time Monitoring of Classroom-wide Behavioral Engagement & Performance
-          </p>
+  return (
+    <div className="report-page th-page">
+      <header className="rp-topbar">
+        <div className="th-topbar-left">
+          <Logo />
+          <span className="th-tag">Teacher</span>
         </div>
+        <div className="rp-topbar-actions">
+          {reports.length > 0 && (
+            <button type="button" className="rp-link" onClick={handleExport}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M6 9l4 4 4-4M4 16h12" /></svg>
+              Export data
+            </button>
+          )}
+          <button type="button" className="rp-link" onClick={signOut}>Sign out</button>
+        </div>
+      </header>
+
+      <section className="rp-hero th-hero">
+        <div className="rp-hero-inner">
+          <div className="rp-hero-text">
+            <span className="rp-eyebrow"><i />Teacher workspace · Grade 10 &amp; 11 science</span>
+            <h1>Turn textbook chapters into quizzes your class can trust.</h1>
+            <p className="rp-hero-summary">
+              Upload a chapter, let the model draft questions, review and approve them —
+              then follow every student's progress, hints and learning state in one place.
+            </p>
+            <div className="rp-hero-actions">
+              <button type="button" className="rp-btn rp-btn--primary" onClick={() => scrollTo('generate')}>
+                Generate questions
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" /></svg>
+              </button>
+              <button type="button" className="rp-btn rp-btn--ghost" onClick={() => scrollTo('students')}>
+                View class performance
+              </button>
+            </div>
+          </div>
+
+          <div className="th-visual">
+            <LottiePlayer className="th-lottie" animationData={teacherFlowAnimation} stillFrame={120} />
+            <ol className="th-steps">
+              <li><b>1</b>Upload</li>
+              <li><b>2</b>Generate</li>
+              <li><b>3</b>Review</li>
+              <li><b>4</b>Publish</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <div className="report-container th-container">
+        <dl className="th-stats">
+          <div><dt>Students</dt><dd>{studentAvgs.length}</dd><small>with at least one quiz</small></div>
+          <div><dt>Quiz sessions</dt><dd>{reports.length}</dd><small>completed in total</small></div>
+          <div><dt>Class average</dt><dd>{classAvg}<span>%</span></dd><small>across all sessions</small></div>
+          <div className={needSupport ? 'warn' : ''}><dt>Need support</dt><dd>{needSupport}</dd><small>students averaging below 50%</small></div>
+        </dl>
 
         {/* Question Generator */}
-        <QuestionGeneratorPanel />
+        <div id="generate" className="th-anchor"><QuestionGeneratorPanel /></div>
 
         {/* Dashboard Content */}
-        <div className="report-section" style={{
+        <div id="students" className="report-section th-anchor" style={{
           background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(12px)',
           border: '1px solid rgba(15,23,42,0.05)', padding: '32px'
         }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
             <div>
-              <h3 className="section-title" style={{ color:'#6366f1', margin:0 }}>📊 Student Performance Overview</h3>
+              <h3 className="section-title" style={{ margin:0 }}>Student performance overview</h3>
               {reports.length > 0 && (
                 <p style={{ margin:'4px 0 0', fontSize:'12px', color:'#9ca3af' }}>
                   {Object.keys(reports.reduce((a,r)=>({...a,[r.studentId]:1}),{})).length} students · {reports.length} sessions total
@@ -149,9 +183,9 @@ const TeacherDashboard = () => {
             </div>
             {reports.length > 0 && (
               <button onClick={handleExport} style={{
-                background:'rgba(99,102,241,0.1)', border:'1px solid #6366f1', color:'#4f46e5',
+                background:'rgba(14, 124, 102,0.1)', border:'1px solid #0E7C66', color:'#0B6553',
                 padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:'700', cursor:'pointer'
-              }}>📥 Export Data (JSON)</button>
+              }}>Export data (JSON)</button>
             )}
           </div>
 
@@ -166,12 +200,6 @@ const TeacherDashboard = () => {
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="report-actions" style={{ marginTop: '40px', justifyContent: 'center' }}>
-          <button className="btn-logout" onClick={() => { clearTeacherKey(); navigate('/login'); }} style={{ minWidth: '200px' }}>
-            ← Return to Main Login
-          </button>
-        </div>
       </div>
 
       <style>{`

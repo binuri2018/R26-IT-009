@@ -17,15 +17,15 @@
   position: relative;
 }
 .option:hover:not(:disabled) {
-  border-color: #6366f1;
-  background: rgba(99,102,241,0.1);
+  border-color: #0E7C66;
+  background: rgba(14, 124, 102,0.1);
   color: #111827;
   transform: translateX(4px);
 }
 .option.selected {
-  border-color: #6366f1;
-  background: rgba(99,102,241,0.18);
-  color: #4f46e5;
+  border-color: #0E7C66;
+  background: rgba(14, 124, 102,0.18);
+  color: #0B6553;
 }
 .option.correct {
   border-color: #22c55e;
@@ -44,14 +44,14 @@
   min-width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(99,102,241,0.15);
-  border: 1px solid rgba(99,102,241,0.2);
+  background: rgba(14, 124, 102,0.15);
+  border: 1px solid rgba(14, 124, 102,0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
-  color: #4f46e5;
+  color: #0B6553;
   flex-shrink: 0;
 }
 .option.correct .option-letter { background: rgba(34,197,94,0.2); border-color: #22c55e; color: #22c55e; }

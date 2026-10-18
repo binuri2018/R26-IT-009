@@ -12,7 +12,7 @@ import {
 const LEVELS = {
   1: { accent: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)',  label: 'Level 1 — Basic' },
   2: { accent: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)', label: 'Level 2 — Concept' },
-  3: { accent: '#6366f1', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)', label: 'Level 3 — Advanced' },
+  3: { accent: '#0E7C66', bg: 'rgba(14, 124, 102,0.1)', border: 'rgba(14, 124, 102,0.25)', label: 'Level 3 — Advanced' },
 };
 
 const field = {
@@ -105,7 +105,7 @@ export default function QuestionReviewQueue({ lessonId, refreshKey = 0, onCountC
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontWeight: '800', fontSize: '14px', color: '#111827' }}>
-            📝 Review before publishing {lessonId && <span style={{ color: '#6366f1' }}>· {lessonId}</span>}
+            Review before publishing {lessonId && <span style={{ color: '#0E7C66' }}>· {lessonId}</span>}
           </div>
           <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
             AI-generated questions are hidden from students until you approve them. Fix anything that looks wrong first.
@@ -122,7 +122,7 @@ export default function QuestionReviewQueue({ lessonId, refreshKey = 0, onCountC
               cursor: busyAll || dirtyIds.size ? 'not-allowed' : 'pointer',
             }}
           >
-            {busyAll ? 'Approving…' : `✅ Approve all (${items.length})`}
+            {busyAll ? 'Approving…' : `Approve all (${items.length})`}
           </button>
         )}
       </div>
@@ -134,7 +134,7 @@ export default function QuestionReviewQueue({ lessonId, refreshKey = 0, onCountC
       )}
       {error && (
         <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#dc2626', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', marginBottom: '10px' }}>
-          ⚠️ {error}
+          {error}
         </div>
       )}
 
@@ -142,7 +142,7 @@ export default function QuestionReviewQueue({ lessonId, refreshKey = 0, onCountC
         <div style={{ textAlign: 'center', padding: '24px', color: '#9ca3af', fontSize: '13px' }}>Loading questions…</div>
       ) : items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '24px', color: '#9ca3af', fontSize: '13px' }}>
-          🎉 Nothing waiting for review{lessonId ? ' in this lesson' : ''}.
+          Nothing waiting for review{lessonId ? ' in this lesson' : ''}.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -228,7 +228,7 @@ function ReviewCard({ q, idx, onDirty, onSaved, onRemoved, onError }) {
         >
           {[1, 2, 3].map(l => <option key={l} value={l}>{LEVELS[l].label}</option>)}
         </select>
-        <span style={{ fontSize: '11px', color: '#9ca3af' }}>🏷 {q.conceptTag} · ID {q.questionId}</span>
+        <span style={{ fontSize: '11px', color: '#9ca3af' }}>{q.conceptTag} · ID {q.questionId}</span>
         {dirty && <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#d97706', fontWeight: '700' }}>● unsaved edits</span>}
       </div>
 
@@ -272,20 +272,20 @@ function ReviewCard({ q, idx, onDirty, onSaved, onRemoved, onError }) {
 
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px', flexWrap: 'wrap' }}>
         <button onClick={handleReject} disabled={!!busy} style={button('rgba(239,68,68,0.08)', '#dc2626', 'rgba(239,68,68,0.3)')}>
-          {busy === 'reject' ? 'Rejecting…' : '🗑 Reject'}
+          {busy === 'reject' ? 'Rejecting…' : 'Reject'}
         </button>
         {dirty && (
           <>
             <button onClick={() => setDraft(toDraft(q))} disabled={!!busy} style={button('transparent', '#6b7280', '#d1d5db')}>
               ↺ Discard
             </button>
-            <button onClick={handleSave} disabled={!!busy} style={button('rgba(99,102,241,0.1)', '#4f46e5', 'rgba(99,102,241,0.3)')}>
-              {busy === 'save' ? 'Saving…' : '💾 Save'}
+            <button onClick={handleSave} disabled={!!busy} style={button('rgba(14, 124, 102,0.1)', '#0B6553', 'rgba(14, 124, 102,0.3)')}>
+              {busy === 'save' ? 'Saving…' : 'Save'}
             </button>
           </>
         )}
         <button onClick={handleApprove} disabled={!!busy} style={button('#16a34a', '#fff', '#16a34a')}>
-          {busy === 'approve' ? 'Approving…' : dirty ? '💾 Save & approve' : '✅ Approve'}
+          {busy === 'approve' ? 'Approving…' : dirty ? 'Save & approve' : 'Approve'}
         </button>
       </div>
     </div>

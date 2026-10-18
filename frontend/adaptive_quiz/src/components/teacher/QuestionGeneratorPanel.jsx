@@ -229,8 +229,8 @@ export default function QuestionGeneratorPanel() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h3 style={{ color: '#6366f1', margin: 0, fontSize: '16px', fontWeight: '800' }}>
-            🤖 Generate Questions from PDF
+          <h3 style={{ color: '#0E7C66', margin: 0, fontSize: '16px', fontWeight: '800' }}>
+            Generate Questions from PDF
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
             Upload a lesson PDF — T5 model drafts MCQ questions for you to review before students see them
@@ -245,18 +245,18 @@ export default function QuestionGeneratorPanel() {
               borderRadius: '8px', padding: '6px 14px', fontSize: '12px',
               fontWeight: '700', cursor: 'pointer',
             }}>
-              📝 Review ({pendingCount})
+              Review ({pendingCount})
             </button>
           )}
           {history.length > 0 && (
             <button onClick={() => setShowHistory(v => !v)} style={{
-              background: showHistory ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.05)',
-              border: showHistory ? '1px solid rgba(99,102,241,0.4)' : '1px solid rgba(255,255,255,0.1)',
-              color: showHistory ? '#4f46e5' : '#4b5563',
+              background: showHistory ? 'rgba(14, 124, 102,0.15)' : 'rgba(15,23,42,0.05)',
+              border: showHistory ? '1px solid rgba(14, 124, 102,0.4)' : '1px solid rgba(255,255,255,0.1)',
+              color: showHistory ? '#0B6553' : '#4b5563',
               borderRadius: '8px', padding: '6px 14px', fontSize: '12px',
               fontWeight: '700', cursor: 'pointer',
             }}>
-              🕘 History ({history.length})
+              History ({history.length})
             </button>
           )}
           {result && (
@@ -274,7 +274,7 @@ export default function QuestionGeneratorPanel() {
       {/* History panel */}
       {showHistory && (
         <div style={{
-          background: 'rgba(15,23,42,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+          background: 'rgba(15,23,42,0.08)', border: '1px solid rgba(14, 124, 102,0.2)',
           borderRadius: '12px', padding: '16px', marginBottom: '20px',
         }}>
           <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
@@ -291,16 +291,16 @@ export default function QuestionGeneratorPanel() {
                   background: 'rgba(15,23,42,0.05)', border: '1px solid rgba(15,23,42,0.05)',
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(14, 124, 102,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(15,23,42,0.05)'}
               >
-                <span style={{ fontSize: '20px' }}>📄</span>
+                <span style={{ fontSize: '20px' }}></span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {h.pdfName || 'PDF file'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
-                    <span style={{ color: '#6366f1' }}>{h.lessonId}</span>
+                    <span style={{ color: '#0E7C66' }}>{h.lessonId}</span>
                     {' · '}
                     <span>{h.conceptTag}</span>
                     {' · '}
@@ -310,8 +310,8 @@ export default function QuestionGeneratorPanel() {
                   </div>
                 </div>
                 <span style={{
-                  fontSize: '11px', color: '#6366f1', fontWeight: '700',
-                  background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
+                  fontSize: '11px', color: '#0E7C66', fontWeight: '700',
+                  background: 'rgba(14, 124, 102,0.1)', border: '1px solid rgba(14, 124, 102,0.2)',
                   borderRadius: '6px', padding: '3px 8px', flexShrink: 0,
                 }}>
                   Load
@@ -325,7 +325,7 @@ export default function QuestionGeneratorPanel() {
                   }}
                   title="Remove from history"
                 >
-                  ✕
+                  
                 </button>
               </div>
             ))}
@@ -395,14 +395,14 @@ export default function QuestionGeneratorPanel() {
           {/* Connection info — shows teacher exactly where questions will go */}
           {lessonId && (
             <div style={{
-              background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+              background: 'rgba(14, 124, 102,0.08)', border: '1px solid rgba(14, 124, 102,0.2)',
               borderRadius: '10px', padding: '10px 14px', marginBottom: '16px',
               fontSize: '12px',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '15px' }}>🔗</span>
+                <span style={{ fontSize: '15px' }}></span>
                 <span style={{ color: '#4b5563' }}>
-                  Questions saved to lesson <strong style={{ color: '#4f46e5' }}>{lessonId}</strong>
+                  Questions saved to lesson <strong style={{ color: '#0B6553' }}>{lessonId}</strong>
                 </span>
               </div>
               <div style={{ color: '#9ca3af', paddingLeft: '23px', lineHeight: '1.6' }}>
@@ -420,12 +420,12 @@ export default function QuestionGeneratorPanel() {
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             style={{
-              border: `2px dashed ${isDragging ? '#6366f1' : pdfFile ? '#22c55e' : 'rgba(15,23,42,0.05)'}`,
+              border: `2px dashed ${isDragging ? '#0E7C66' : pdfFile ? '#22c55e' : 'rgba(15,23,42,0.05)'}`,
               borderRadius: '12px',
               padding: '32px 20px',
               textAlign: 'center',
               cursor: generating ? 'default' : 'pointer',
-              background: isDragging ? 'rgba(99,102,241,0.06)' : pdfFile ? 'rgba(34,197,94,0.04)' : 'transparent',
+              background: isDragging ? 'rgba(14, 124, 102,0.06)' : pdfFile ? 'rgba(34,197,94,0.04)' : 'transparent',
               transition: 'all 0.2s ease',
               marginBottom: '20px',
             }}
@@ -439,7 +439,7 @@ export default function QuestionGeneratorPanel() {
             />
             {pdfFile ? (
               <div>
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📄</div>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}></div>
                 <div style={{ color: '#22c55e', fontWeight: '700', fontSize: '14px' }}>{pdfFile.name}</div>
                 <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>
                   {(pdfFile.size / 1024).toFixed(0)} KB — click to change
@@ -447,7 +447,7 @@ export default function QuestionGeneratorPanel() {
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: '36px', marginBottom: '10px', opacity: 0.4 }}>📂</div>
+                <div style={{ fontSize: '36px', marginBottom: '10px', opacity: 0.4 }}></div>
                 <div style={{ color: '#4b5563', fontSize: '14px', fontWeight: '600' }}>
                   Drop your PDF here or click to upload
                 </div>
@@ -463,7 +463,7 @@ export default function QuestionGeneratorPanel() {
               borderRadius: '10px', padding: '14px 16px', color: '#dc2626',
               fontSize: '13px', marginBottom: '16px', wordBreak: 'break-word',
             }}>
-              <div style={{ fontWeight: '700', marginBottom: '6px' }}>⚠️ {error}</div>
+              <div style={{ fontWeight: '700', marginBottom: '6px' }}>{error}</div>
               {showHfClientHint && (
                 <div style={{ color: '#d97706', fontSize: '12px', lineHeight: '1.7', marginBottom: '10px' }}>
                   The PDF service is running, but loading the T5 model from Hugging Face failed (often a one-time
@@ -496,10 +496,10 @@ export default function QuestionGeneratorPanel() {
             style={{
               width: '100%', padding: '14px',
               background: generating || !pdfFile
-                ? 'rgba(99,102,241,0.2)'
-                : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                ? 'rgba(14, 124, 102,0.2)'
+                : 'linear-gradient(135deg, #0B6553, #13866F)',
               border: 'none', borderRadius: '12px',
-              color: generating || !pdfFile ? '#6366f1' : '#fff',
+              color: generating || !pdfFile ? '#0E7C66' : '#fff',
               fontSize: '15px', fontWeight: '800', cursor: generating || !pdfFile ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s ease',
             }}
@@ -508,12 +508,12 @@ export default function QuestionGeneratorPanel() {
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 <span style={{
                   width: '16px', height: '16px',
-                  border: '2px solid rgba(99,102,241,0.3)', borderTopColor: '#6366f1',
+                  border: '2px solid rgba(14, 124, 102,0.3)', borderTopColor: '#0E7C66',
                   borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block',
                 }} />
                 {elapsed}s elapsed
               </span>
-            ) : '✨ Generate Questions'}
+            ) : 'Generate Questions'}
           </button>
 
           {generating && <GeneratingSteps elapsed={elapsed} numQuestions={numQuestions} />}
@@ -527,7 +527,7 @@ export default function QuestionGeneratorPanel() {
             borderRadius: '12px', padding: '14px 18px',
             display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px',
           }}>
-            <span style={{ fontSize: '24px' }}>📝</span>
+            <span style={{ fontSize: '24px' }}></span>
             <div>
               <div style={{ color: '#b45309', fontWeight: '800', fontSize: '14px' }}>
                 {totalSaved} questions generated — waiting for your review
@@ -539,8 +539,8 @@ export default function QuestionGeneratorPanel() {
                 {chapterInfo?.title && (
                   <div style={{ marginTop: '4px' }}>
                     {chapterInfo.pages
-                      ? <>📖 Used only PDF pages <strong style={{ color: '#4b5563' }}>{chapterInfo.pages[0]}–{chapterInfo.pages[1]}</strong> (chapter “{chapterInfo.title}”)</>
-                      : <>📄 Chapter “{chapterInfo.title}” wasn't found as a section of this PDF — used the whole PDF.</>}
+                      ? <>Used only PDF pages <strong style={{ color: '#4b5563' }}>{chapterInfo.pages[0]}–{chapterInfo.pages[1]}</strong> (chapter “{chapterInfo.title}”)</>
+                      : <>Chapter “{chapterInfo.title}” wasn't found as a section of this PDF — used the whole PDF.</>}
                   </div>
                 )}
                 {' · '}Students won't see them until you approve.
@@ -577,7 +577,7 @@ function GeneratingSteps({ elapsed, numQuestions }) {
         <div style={{
           height: '100%', borderRadius: '99px',
           width: `${pct}%`,
-          background: 'linear-gradient(90deg, #4f46e5, #7c3aed)',
+          background: 'linear-gradient(90deg, #0B6553, #13866F)',
           transition: 'width 1s linear',
         }} />
       </div>
