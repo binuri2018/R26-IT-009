@@ -25,6 +25,9 @@ const EMOTION_DETECT_URL =
 const CAPTURE_INTERVAL_MS  = 600;
 const EXPRESSION_BUFFER_SIZE = 4;
 const MIN_AGREEMENT          = 2;
+// "frustrated" pops a hint and can start a brain-break, so a false alarm costs the
+// student more than a missed one — require 3 of the last 4 frames to agree.
+const FRUSTRATED_AGREEMENT   = 3;
 const MIN_CONFIDENCE         = 0.12;
 
 const useWebcam = (isActive = true) => {
@@ -95,8 +98,13 @@ const useWebcam = (isActive = true) => {
         const rawExpr    = data.detectedExpression || 'neutral';
         const confidence = typeof data.confidence === 'number' ? data.confidence : 1.0;
 
-        // Reject low-confidence frames — noisy predictions degrade behavioral signals
-        if (confidence < MIN_CONFIDENCE) return;
+        // Reject low-confidence smiles/frowns — noisy predictions degrade behavioral
+        // signals. "neutral" always counts: the backend returns neutral with 0 confidence
+        // when no face/expression is found, and dropping those frames left the last
+        // "frustrated" stuck on screen.
+        // "unknown" (no face in view) always counts too.
+        const isAffect = (e) => e !== 'neutral' && e !== 'unknown';
+        if (isAffect(rawExpr) && confidence < MIN_CONFIDENCE) return;
 
         // Rolling window: prefer a repeating smile/frown over a mixed-in neutral frame.
         const buf = expressionBuffer.current;
@@ -106,11 +114,12 @@ const useWebcam = (isActive = true) => {
         const counts = buf.reduce((acc, e) => { acc[e] = (acc[e] || 0) + 1; return acc; }, {});
         const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
         const [dominant, votes] = ranked[0];
-        const affect = ranked.find(([e]) => e !== 'neutral');
+        const affect = ranked.find(([e]) => isAffect(e));
+        const needed = affect?.[0] === 'frustrated' ? FRUSTRATED_AGREEMENT : MIN_AGREEMENT;
         // Prefer a repeating smile/frown even if one frame in the window is neutral.
-        if (affect && affect[1] >= MIN_AGREEMENT) {
+        if (affect && affect[1] >= needed) {
           setCurrentExpression(affect[0]);
-        } else if (votes >= MIN_AGREEMENT) {
+        } else if (votes >= MIN_AGREEMENT && dominant !== 'frustrated') {
           setCurrentExpression(dominant);
         }
       } else {

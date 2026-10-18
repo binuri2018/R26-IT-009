@@ -144,6 +144,72 @@
 @keyframes spin   { to { transform: rotate(360deg); } }
 @keyframes bounce { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-12px); } }
 
+/* Lesson picker: Grade → textbook part → chapter */
+.lc-picker {
+  background: rgba(15,23,42,0.03);
+  border: 1px solid rgba(99,102,241,0.18);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+.lc-picker h3 { font-size: 15px; color: #4b5563; font-weight: 700; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.lc-seg { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.lc-seg button {
+  flex: 1;
+  min-width: 110px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,0.1);
+  background: #fff;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.lc-seg button:hover { border-color: rgba(99,102,241,0.4); }
+.lc-seg button.active { background: rgba(99,102,241,0.1); border-color: #6366f1; color: #4f46e5; }
+.lc-chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding-right: 2px;
+}
+.lc-chapter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,0.08);
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  color: #111827;
+  transition: all 0.15s ease;
+}
+.lc-chapter:hover { border-color: rgba(16,185,129,0.4); }
+.lc-chapter.selected { border-color: #10b981; background: rgba(16,185,129,0.08); }
+.lc-chapter-no {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(99,102,241,0.1);
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 800;
+}
+.lc-chapter-title { flex: 1; font-weight: 600; }
+.lc-chapter-count, .lc-chapter-soon { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; }
+.lc-chapter-count { background: rgba(16,185,129,0.12); color: #059669; }
+.lc-chapter-soon  { background: rgba(15,23,42,0.06); color: #9ca3af; }
+
 /* Adaptive mode banner */
 .lc-adaptive-banner {
   background: rgba(99,102,241,0.08);

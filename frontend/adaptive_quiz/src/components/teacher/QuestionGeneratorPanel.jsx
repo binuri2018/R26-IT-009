@@ -1,13 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { generateQuestionsFromPDF } from '../../api/questionApi';
+import { generateQuestionsFromPDF, getPendingQuestions } from '../../api/questionApi';
+import QuestionReviewQueue from './QuestionReviewQueue';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/adaptive-quiz';
-
-const LEVEL_COLORS = {
-  1: { accent: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.2)',  label: 'Level 1 — Basic' },
-  2: { accent: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)', label: 'Level 2 — Concept' },
-  3: { accent: '#6366f1', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.2)', label: 'Level 3 — Advanced' },
-};
 
 const card = {
   background: 'rgba(255,255,255,0.9)',
@@ -39,6 +34,15 @@ const labelStyle = {
   marginBottom: '6px',
 };
 
+// "Grade 11 · Part I" → [chapters…], keeping the API's textbook order
+function groupLessons(lessons) {
+  return lessons.reduce((acc, l) => {
+    const book = l.grade ? `Grade ${l.grade} · Part ${l.part === 2 ? 'II' : 'I'}` : 'Other lessons';
+    (acc[book] = acc[book] || []).push(l);
+    return acc;
+  }, {});
+}
+
 const HISTORY_KEY = 'qgen_history';
 const MAX_HISTORY = 10;
 
@@ -63,8 +67,11 @@ export default function QuestionGeneratorPanel() {
   const [isDragging,    setIsDragging]    = useState(false);
   const [generating,    setGenerating]    = useState(false);
   const [result,        setResult]        = useState(null);
-  const [activeLevel,   setActiveLevel]   = useState(1);
   const [error,         setError]         = useState('');
+  const [showReview,    setShowReview]    = useState(false);
+  const [reviewKey,     setReviewKey]     = useState(0);   // bump to reload the review queue
+  const [pendingCount,  setPendingCount]  = useState(0);
+  const [chapterInfo,   setChapterInfo]   = useState(null);  // which pages of the PDF were used
   /** Stem API JSON `cause`; `ml_unreachable` = TCP/service down; `ml_upstream_error` = model/HF/backend error inside ML */
   const [errorCause,    setErrorCause]    = useState(null);
   const [elapsed,       setElapsed]       = useState(0);
@@ -92,6 +99,18 @@ export default function QuestionGeneratorPanel() {
         setError('Cannot reach backend on port 3001. Start it with: npm run dev');
       });
   }, []);
+
+  // How many generated questions in this lesson still wait for approval
+  useEffect(() => {
+    const id = lessonId.trim();
+    if (!id) return undefined;   // the Review button is hidden without a lesson
+    const t = setTimeout(() => {
+      getPendingQuestions(id)
+        .then(res => setPendingCount(res.count || 0))
+        .catch(() => setPendingCount(0));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [lessonId, reviewKey]);
 
   // ── File handling ────────────────────────────────────────────────────────
 
@@ -133,7 +152,8 @@ export default function QuestionGeneratorPanel() {
         numQuestions,
       });
       setResult(data.questions);
-      setActiveLevel(1);
+      setChapterInfo({ title: data.chapterTitle, pages: data.chapterPages });
+      setReviewKey(k => k + 1);
       const entry = {
         id: Date.now(),
         lessonId: lessonId.trim(),
@@ -177,7 +197,6 @@ export default function QuestionGeneratorPanel() {
     setNumQuestions(entry.numQuestions);
     setResult(entry.questions);
     setPdfName(entry.pdfName);
-    setActiveLevel(1);
     setError('');
     setErrorCause(null);
     setShowHistory(false);
@@ -192,7 +211,6 @@ export default function QuestionGeneratorPanel() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const activeQuestions = result ? (result[`level${activeLevel}`] || []) : [];
   const totalSaved = result
     ? result.level1.length + result.level2.length + result.level3.length
     : 0;
@@ -215,10 +233,21 @@ export default function QuestionGeneratorPanel() {
             🤖 Generate Questions from PDF
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
-            Upload a lesson PDF — T5 model auto-generates MCQ questions and saves them to MongoDB
+            Upload a lesson PDF — T5 model drafts MCQ questions for you to review before students see them
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          {!result && lessonId.trim() && (
+            <button onClick={() => setShowReview(v => !v)} style={{
+              background: showReview ? 'rgba(245,158,11,0.15)' : 'rgba(15,23,42,0.05)',
+              border: showReview ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(255,255,255,0.1)',
+              color: pendingCount ? '#d97706' : '#4b5563',
+              borderRadius: '8px', padding: '6px 14px', fontSize: '12px',
+              fontWeight: '700', cursor: 'pointer',
+            }}>
+              📝 Review ({pendingCount})
+            </button>
+          )}
           {history.length > 0 && (
             <button onClick={() => setShowHistory(v => !v)} style={{
               background: showHistory ? 'rgba(99,102,241,0.15)' : 'rgba(15,23,42,0.05)',
@@ -304,27 +333,41 @@ export default function QuestionGeneratorPanel() {
         </div>
       )}
 
+      {!result && showReview && (
+        <div style={{
+          border: '1px solid rgba(245,158,11,0.25)', borderRadius: '12px',
+          padding: '16px', marginBottom: '20px', background: 'rgba(245,158,11,0.03)',
+        }}>
+          <QuestionReviewQueue lessonId={lessonId.trim()} refreshKey={reviewKey} onCountChange={setPendingCount} />
+        </div>
+      )}
+
       {!result ? (
         <>
           {/* Form row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '16px', marginBottom: '20px' }}>
             <div>
               <label style={labelStyle}>Lesson *</label>
-              <input
-                list="lesson-options"
+              {/* Pick from the textbook chapters students see — a typo'd free-text
+                  lesson ID would send questions to a lesson no student can open */}
+              <select
                 style={inputStyle}
-                placeholder="e.g. lesson-heart (type manually)"
                 value={lessonId}
                 onChange={e => setLessonId(e.target.value)}
-                disabled={generating}
-              />
-              {lessons.length > 0 && (
-                <datalist id="lesson-options">
-                  {lessons.map(l => (
-                    <option key={l.lessonId} value={l.lessonId}>{l.title}</option>
-                  ))}
-                </datalist>
-              )}
+                disabled={generating || lessons.length === 0}
+              >
+                {lessons.length === 0 && <option value="">Loading lessons…</option>}
+                {Object.entries(groupLessons(lessons)).map(([book, items]) => (
+                  <optgroup key={book} label={book}>
+                    {items.map(l => (
+                      <option key={l.lessonId} value={l.lessonId}>
+                        {l.chapterNo ? `${l.chapterNo}. ` : ''}{l.title}
+                        {l.questionCount ? ` (${l.questionCount} live)` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
             <div>
               <label style={labelStyle}>Concept Tag</label>
@@ -363,7 +406,7 @@ export default function QuestionGeneratorPanel() {
                 </span>
               </div>
               <div style={{ color: '#9ca3af', paddingLeft: '23px', lineHeight: '1.6' }}>
-                All {numQuestions} questions go into a <strong style={{ color: '#6b7280' }}>question bank</strong>.
+                Questions you approve go into a <strong style={{ color: '#6b7280' }}>question bank</strong>.
                 Each student session randomly draws <strong style={{ color: '#6b7280' }}>3 per level (9 total)</strong> —
                 so students get fresh questions every attempt.
               </div>
@@ -478,70 +521,34 @@ export default function QuestionGeneratorPanel() {
       ) : (
         /* ── Results ── */
         <>
-          {/* Success banner */}
+          {/* Generated → waiting for review banner */}
           <div style={{
-            background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+            background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
             borderRadius: '12px', padding: '14px 18px',
             display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px',
           }}>
-            <span style={{ fontSize: '24px' }}>✅</span>
+            <span style={{ fontSize: '24px' }}>📝</span>
             <div>
-              <div style={{ color: '#16a34a', fontWeight: '800', fontSize: '14px' }}>
-                {totalSaved} questions generated and saved to MongoDB
+              <div style={{ color: '#b45309', fontWeight: '800', fontSize: '14px' }}>
+                {totalSaved} questions generated — waiting for your review
               </div>
               <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>
                 Lesson: <strong style={{ color: '#4b5563' }}>{lessonId}</strong>
                 {' · '}Tag: <strong style={{ color: '#4b5563' }}>{conceptTag || 'General'}</strong>
                 {' · '}Took {elapsed}s
+                {chapterInfo?.title && (
+                  <div style={{ marginTop: '4px' }}>
+                    {chapterInfo.pages
+                      ? <>📖 Used only PDF pages <strong style={{ color: '#4b5563' }}>{chapterInfo.pages[0]}–{chapterInfo.pages[1]}</strong> (chapter “{chapterInfo.title}”)</>
+                      : <>📄 Chapter “{chapterInfo.title}” wasn't found as a section of this PDF — used the whole PDF.</>}
+                  </div>
+                )}
+                {' · '}Students won't see them until you approve.
               </div>
             </div>
           </div>
 
-          {/* Level tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            {[1, 2, 3].map(lvl => {
-              const c = LEVEL_COLORS[lvl];
-              const count = result[`level${lvl}`]?.length || 0;
-              const isActive = activeLevel === lvl;
-              return (
-                <button
-                  key={lvl}
-                  onClick={() => setActiveLevel(lvl)}
-                  style={{
-                    flex: 1, padding: '10px 8px',
-                    background: isActive ? c.bg : 'transparent',
-                    border: `1px solid ${isActive ? c.border : 'rgba(15,23,42,0.05)'}`,
-                    borderRadius: '10px', cursor: 'pointer',
-                    color: isActive ? c.accent : '#6b7280',
-                    fontWeight: '800', fontSize: '13px',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  {c.label}
-                  <span style={{
-                    marginLeft: '6px', padding: '2px 7px', borderRadius: '99px',
-                    background: isActive ? c.bg : 'rgba(15,23,42,0.05)',
-                    fontSize: '11px', color: isActive ? c.accent : '#9ca3af',
-                  }}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Question cards */}
-          {activeQuestions.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px', color: '#9ca3af', fontSize: '14px' }}>
-              No questions generated for this level.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {activeQuestions.map((q, idx) => (
-                <QuestionCard key={q.questionId || idx} q={q} idx={idx} level={activeLevel} />
-              ))}
-            </div>
-          )}
+          <QuestionReviewQueue lessonId={lessonId.trim()} refreshKey={reviewKey} onCountChange={setPendingCount} />
         </>
       )}
 
@@ -604,102 +611,6 @@ function GeneratingSteps({ elapsed, numQuestions }) {
       <p style={{ textAlign: 'center', color: '#c2ccd9', fontSize: '11px', marginTop: '10px' }}>
         Estimated {estimate}s for {numQuestions} questions · batch inference active
       </p>
-    </div>
-  );
-}
-
-function QuestionCard({ q, idx, level }) {
-  const [expanded, setExpanded] = useState(false);
-  const c = LEVEL_COLORS[level];
-
-  return (
-    <div style={{
-      background: 'rgba(15,23,42,0.05)',
-      border: '1px solid rgba(15,23,42,0.05)',
-      borderRadius: '12px',
-      overflow: 'hidden',
-    }}>
-      {/* Question header — always visible */}
-      <div
-        onClick={() => setExpanded(v => !v)}
-        style={{
-          padding: '14px 16px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '12px',
-        }}
-      >
-        <span style={{
-          background: c.bg, color: c.accent, border: `1px solid ${c.border}`,
-          borderRadius: '8px', padding: '3px 8px', fontSize: '11px',
-          fontWeight: '800', flexShrink: 0, marginTop: '2px',
-        }}>
-          Q{idx + 1}
-        </span>
-        <span style={{ color: '#111827', fontSize: '14px', fontWeight: '600', flex: 1 }}>
-          {q.questionText}
-        </span>
-        <span style={{ color: '#9ca3af', fontSize: '12px', flexShrink: 0 }}>
-          {expanded ? '▲' : '▼'}
-        </span>
-      </div>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid rgba(15,23,42,0.05)' }}>
-
-          {/* Options */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-            {q.options.map((opt, i) => {
-              const isCorrect = opt === q.correctAnswer;
-              return (
-                <div key={i} style={{
-                  padding: '9px 14px', borderRadius: '8px', fontSize: '13px',
-                  background: isCorrect ? 'rgba(34,197,94,0.1)' : 'rgba(15,23,42,0.05)',
-                  border: `1px solid ${isCorrect ? 'rgba(34,197,94,0.3)' : 'rgba(15,23,42,0.05)'}`,
-                  color: isCorrect ? '#16a34a' : '#4b5563',
-                  fontWeight: isCorrect ? '700' : '400',
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                }}>
-                  <span style={{ opacity: 0.5 }}>{String.fromCharCode(65 + i)}.</span>
-                  {opt}
-                  {isCorrect && <span style={{ marginLeft: 'auto', fontSize: '12px' }}>✓ Correct</span>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Hint */}
-          {q.hint && (
-            <div style={{
-              marginTop: '10px', padding: '10px 14px', borderRadius: '8px',
-              background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
-              color: '#d97706', fontSize: '12px',
-            }}>
-              💡 <strong>Hint:</strong> {q.hint}
-            </div>
-          )}
-
-          {/* Concept tag */}
-          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{
-              padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '700',
-              background: 'rgba(99,102,241,0.1)', color: '#4f46e5',
-              border: '1px solid rgba(99,102,241,0.2)',
-            }}>
-              🏷 {q.conceptTag}
-            </span>
-            <span style={{
-              padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '700',
-              background: 'rgba(15,23,42,0.05)', color: '#6b7280',
-              border: '1px solid rgba(15,23,42,0.05)',
-            }}>
-              ID: {q.questionId}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

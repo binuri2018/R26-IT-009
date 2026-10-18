@@ -187,6 +187,53 @@ def get_model():
             return None
 
 
+_face_detector: Any = None
+_face_load_error: str | None = None
+
+
+def _get_face_detector():
+    """Lazy-load OpenCV YuNet. Returns None (gating disabled) if the model file is missing."""
+    global _face_detector, _face_load_error
+    with _model_lock:
+        if _face_detector is not None or _face_load_error is not None:
+            return _face_detector
+        path = settings.resolved_face_model_path()
+        if not path.is_file():
+            _face_load_error = f"Face model not found: {path}"
+            log.warning("%s — emotion results are NOT face-gated", _face_load_error)
+            return None
+        try:
+            import cv2
+
+            _face_detector = cv2.FaceDetectorYN.create(str(path), "", (320, 320), settings.face_min_score)
+            log.info("Loaded face detector from %s", path)
+        except Exception as e:  # noqa: BLE001
+            _face_load_error = str(e)
+            log.exception("Failed to load face detector: %s", e)
+        return _face_detector
+
+
+def _find_face(bgr: np.ndarray) -> np.ndarray | None:
+    """Largest detected face as [x1, y1, x2, y2], or None when nobody is in front of the camera."""
+    detector = _get_face_detector()
+    h, w = bgr.shape[:2]
+    detector.setInputSize((w, h))
+    _, faces = detector.detect(bgr)
+    if faces is None or not len(faces):
+        return None
+    x, y, fw, fh = max(faces, key=lambda f: f[2] * f[3])[:4]
+    return np.array([x, y, x + fw, y + fh], dtype=np.float64)
+
+
+def _on_face(xyxy: np.ndarray, face: np.ndarray) -> np.ndarray:
+    """Mask of expression boxes that belong to the detected face (centre on the face, padded 30%)."""
+    fx1, fy1, fx2, fy2 = face
+    pad_x, pad_y = (fx2 - fx1) * 0.3, (fy2 - fy1) * 0.3
+    cx = (xyxy[:, 0] + xyxy[:, 2]) / 2
+    cy = (xyxy[:, 1] + xyxy[:, 3]) / 2
+    return (cx >= fx1 - pad_x) & (cx <= fx2 + pad_x) & (cy >= fy1 - pad_y) & (cy <= fy2 + pad_y)
+
+
 def _gate_expression(expr: str, conf: float) -> tuple[str, float]:
     """Keep a weak read as neutral; allow typical webcam valence confidences through."""
     if expr == "neutral":
@@ -215,6 +262,15 @@ def analyze_frame(frame_b64: str) -> tuple[str, float]:
         bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if bgr is None:
             return "neutral", 0.0
+
+        # No face in front of the camera → no emotion at all (the expression model
+        # alone happily "finds" frustrated/happy boxes in an empty room).
+        gated = _get_face_detector() is not None
+        face = _find_face(bgr) if gated else None
+        if gated and face is None:
+            if settings.emotion_debug:
+                log.warning("emotion-debug no face -> unknown")
+            return "unknown", 0.0
 
         predict_kw: dict[str, Any] = dict(
             source=bgr, verbose=False, imgsz=settings.emotion_predict_imgsz
@@ -254,19 +310,36 @@ def analyze_frame(frame_b64: str) -> tuple[str, float]:
             xyxy = np.asarray(xyxy, dtype=np.float64).reshape(-1, 4)
 
             names = getattr(model, "names", {}) or {}
+            all_boxes = (confs, clss, xyxy)
+            if face is not None:                    # ignore boxes on the background
+                keep = _on_face(xyxy, face)
+                confs, clss, xyxy = confs[keep], clss[keep], xyxy[keep]
             cid, conf = _detect_pick_class(names, confs, clss, xyxy, label_map)
             if cid < 0:
-                return "neutral", 0.0
-            raw = names.get(cid, names.get(str(cid), str(cid)))
-            if isinstance(raw, (list, tuple)) and raw:
-                raw = raw[0]
-            expr = map_to_expression(str(raw), label_map)
-            return _gate_expression(expr, round(min(max(conf, 0.0), 1.0), 4))
+                result = ("neutral", 0.0)           # face visible, no confident expression
+            else:
+                raw = names.get(cid, names.get(str(cid), str(cid)))
+                if isinstance(raw, (list, tuple)) and raw:
+                    raw = raw[0]
+                expr = map_to_expression(str(raw), label_map)
+                result = _gate_expression(expr, round(min(max(conf, 0.0), 1.0), 4))
+            if settings.emotion_debug:
+                _log_debug(names, all_boxes, int(len(confs)), result)
+            return result
 
+        if settings.emotion_debug:
+            log.warning("emotion-debug face, no boxes -> neutral")
         return "neutral", 0.0
     except Exception:  # noqa: BLE001
         log.exception("Emotion inference failed")
         return "neutral", 0.0
+
+
+def _log_debug(names, all_boxes, kept: int, result) -> None:
+    """Numbers only (never images): every box's label/confidence and how many sat on the face."""
+    confs, clss, _ = all_boxes
+    boxes = [(str(names.get(int(c), c)), round(float(p), 2)) for c, p in zip(clss, confs)]
+    log.warning("emotion-debug boxes=%s on_face=%d -> %s", boxes, kept, result)
 
 
 def emotion_model_status() -> dict[str, Any]:
@@ -277,4 +350,9 @@ def emotion_model_status() -> dict[str, Any]:
         "loaded": _model is not None,
         "error": _load_error,
         "backend": "ultralytics_yolo",
+        "faceGate": {
+            "path": str(settings.resolved_face_model_path()),
+            "loaded": _face_detector is not None,
+            "error": _face_load_error,
+        },
     }

@@ -6,9 +6,9 @@
  * - Learning state distribution
  */
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate }         from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAssessment }       from '../context/AssessmentContext';
-import { getReport, getProgressOverTime } from '../api/responseApi';
+import { getReport, getProgressOverTime, getStudentHistory } from '../api/responseApi';
 import { getStudyPlan, saveStudyPlan, resetStudyPlan } from '../api/studyPlanApi';
 import { getAllLessons } from '../api/lessonApi';
 import {
@@ -59,6 +59,7 @@ const DURATION_SCALE  = { quick: 0.6, standard: 1.0, deep: 1.5 };
 
 const ReportPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { student, lesson, sessionId, resetAssessment, setStudent, setLesson } = useAssessment();
   const { registerCommands, speak } = useVoice();
 
@@ -104,12 +105,32 @@ const ReportPage = () => {
         let activeLesson = lesson;
         if (!activeLesson) {
           const lessonsRes = await getAllLessons();
-          activeLesson = lessonsRes.data?.[0] || null;
+          // The lesson the student last picked — not just the first one in the list
+          const picked = localStorage.getItem('stemLessonId');
+          activeLesson = lessonsRes.data?.find(l => l.lessonId === picked) || lessonsRes.data?.[0] || null;
           if (!activeLesson) { setError('No lessons found.'); setLoading(false); return; }
           setLesson(activeLesson);
         }
 
-        const res = await getReport(stored.studentId, activeLesson.lessonId, sessionId);
+        // The context's sessionId is the quiz this tab last ran — possibly another lesson
+        // (ids look like "<student>_<lesson>_<ts>"). Only use it for that lesson; otherwise
+        // open this lesson's latest session. Never send no session: the backend would
+        // merge every attempt into one report.
+        const belongs = (s) => s?.startsWith(`${stored.studentId}_${activeLesson.lessonId}_`);
+        const picked = location.state?.sessionId;      // a row clicked in "My past reports"
+        let reportSession = belongs(picked) ? picked : belongs(sessionId) ? sessionId : null;
+        if (!reportSession) {
+          // Latest report for this lesson from the student's history (newest first) —
+          // works even when the lesson has no live questions right now
+          const hist = await getStudentHistory(stored.studentId);
+          reportSession = (hist.data || []).find(r => r.lessonId === activeLesson.lessonId)?.sessionId || null;
+          if (!reportSession) {
+            setError('No completed assessment for this lesson yet.');
+            return;
+          }
+        }
+
+        const res = await getReport(stored.studentId, activeLesson.lessonId, reportSession);
         setReport(res.data);
         // Load progress timeline in parallel (non-blocking — failure is silent)
         try {
