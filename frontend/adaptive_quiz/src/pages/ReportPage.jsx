@@ -15,7 +15,7 @@ import {
   formatLevelScores, formatConceptPerformance, formatExpressionFrequency,
   formatLearningStates, getPerformanceBadge, formatTotalTime,
   generateStudyPlan, formatProgressHistory, generateWeeklyTimetable, formatTimeRange,
-  toLocalISODate, TIME_SLOT_NAMES, calculateBadges,
+  toLocalISODate, TIME_SLOT_NAMES, calculateBadges, buildLearningProfile,
 } from '../utils/reportUtils';
 import { getExpressionEmoji }  from '../utils/quizLogic';
 import { useVoice } from '../context/VoiceContext';
@@ -36,6 +36,9 @@ const INTENSITY_COLOR = { light: '#22c55e',    medium: '#f59e0b',          inten
 const DURATION_SCALE  = { quick: 0.6, standard: 1.0, deep: 1.5 };
 
 const expressionLabel = (e) => (e === 'unknown' ? 'No face detected' : e);
+
+// Mongo returns UTC datetimes without a zone ("2026-10-19T18:00:00") — read them as UTC
+const utcTime = (s) => Date.parse(/[zZ]|[+-]\d\d:\d\d$/.test(s) ? s : `${s}Z`);
 
 const ReportPage = () => {
   const navigate = useNavigate();
@@ -65,6 +68,9 @@ const ReportPage = () => {
   const [progress,     setProgress]     = useState([]);
   const [durationPref, setDurationPref] = useState('standard');
   const [disabledDays, setDisabledDays] = useState(() => new Set());
+  // Every attempt (all chapters) + chapter titles → one learning profile for the plan/timetable
+  const [history,      setHistory]      = useState([]);
+  const [lessonsList,  setLessonsList]  = useState([]);
 
   // Saved (database-persisted) custom study plan, and the working copy while editing it.
   const [customPlan,   setCustomPlan]   = useState(null);
@@ -112,6 +118,16 @@ const ReportPage = () => {
 
         const res = await getReport(stored.studentId, activeLesson.lessonId, reportSession);
         setReport(res.data);
+        // All attempts across every chapter (fetched after getReport, so the quiz just
+        // finished is included) — the study plan and timetable are built from these.
+        try {
+          const [hist, lessonsRes] = await Promise.all([
+            getStudentHistory(stored.studentId),
+            getAllLessons(),
+          ]);
+          setHistory(hist.data || []);
+          setLessonsList(lessonsRes.data || []);
+        } catch { /* falls back to this report only */ }
         // Load progress timeline in parallel (non-blocking — failure is silent)
         try {
           const prog = await getProgressOverTime(stored.studentId, activeLesson.lessonId);
@@ -155,7 +171,9 @@ const ReportPage = () => {
   const concepts        = formatConceptPerformance(report.conceptPerformance);
   const expressions     = formatExpressionFrequency(report.expressionFrequency);
   const learningStates  = formatLearningStates(report.learningStateDistribution);
-  const autoTimetable   = generateWeeklyTimetable(report);
+  const profile         = history.length ? buildLearningProfile(history, lessonsList) : null;
+  const studyPlan       = generateStudyPlan(report, new Date(), profile);
+  const autoTimetable   = generateWeeklyTimetable(report, new Date(), profile);
   const durationScale   = DURATION_SCALE[durationPref];
   const progressFormatted = formatProgressHistory(progress);
   const badges           = calculateBadges(report, progressFormatted);
@@ -170,6 +188,13 @@ const ReportPage = () => {
     0
   );
   const intensityLabel = customPlan?.intensity || autoTimetable.intensity;
+  // A saved custom plan made before the latest quiz doesn't know those results yet
+  const attemptsSincePlan = customPlan?.updatedAt
+    ? history.filter(r => r.createdAt && utcTime(r.createdAt) > utcTime(customPlan.updatedAt)).length
+    : 0;
+  const historyNote = profile && profile.attempts > 1
+    ? ` from your ${profile.attempts} quiz attempts across ${profile.chapters} chapter${profile.chapters > 1 ? 's' : ''}`
+    : ' from your results';
   const weekRangeLabelDisplay = `${baseSchedule[0].dateLabel} – ${baseSchedule[6].dateLabel}`;
 
   // Non-edit mode: purely cosmetic dim toggle (legacy). Edit mode: real rest-day toggle
@@ -396,10 +421,14 @@ const ReportPage = () => {
         {/* Personalized Study Plan (Research Component) */}
         <div className="report-section" style={{ borderLeft: '4px solid #0E7C66' }}>
           <h3 className="section-title">✨ Personalized Study Plan</h3>
-          <p className="section-subtitle">Tailored recommendations based on your performance &amp; behavior signals</p>
+          <p className="section-subtitle">
+            Tailored recommendations based on your performance &amp; behavior signals
+            {profile && profile.attempts > 1 && ` · combines all ${profile.attempts} of your recent attempts`}
+          </p>
           <div className="study-plan-cards">
-            {generateStudyPlan(report).map((item, idx) => {
+            {studyPlan.map((item, idx) => {
               const typeConfig = {
+                progress:   { color: '#0E7C66', bg: 'rgba(14,124,102,0.07)', border: 'rgba(14,124,102,0.22)', badge: 'Your Progress',    badgeBg: 'rgba(14,124,102,0.14)' },
                 conceptual: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.22)',  badge: 'Review Needed',    badgeBg: 'rgba(239,68,68,0.15)' },
                 behavioral: { color: '#13866F', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)', badge: 'Behavior Insight', badgeBg: 'rgba(167,139,250,0.15)' },
                 resource:   { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.22)',  badge: 'Next Action',      badgeBg: 'rgba(34,197,94,0.15)' },
@@ -429,7 +458,7 @@ const ReportPage = () => {
         <div className="report-section timetable-section">
           <h3 className="section-title">🗓 Weekly Study Timetable</h3>
           <p className="section-subtitle">
-            {isCustom ? 'Your customized plan' : 'Auto-generated from your results'} · {weekRangeLabelDisplay}
+            {isCustom ? 'Your customized plan' : `Auto-generated${historyNote}`} · {weekRangeLabelDisplay}
             {!isEditing && ' · tap a day to skip it'}
           </p>
 
@@ -490,6 +519,16 @@ const ReportPage = () => {
             )}
             {planMsg && <span className="plan-action-msg">{planMsg}</span>}
           </div>
+
+          {customPlan && !isEditing && attemptsSincePlan > 0 && (
+            <div className="plan-stale-note">
+              You've taken {attemptsSincePlan} quiz{attemptsSincePlan > 1 ? 'zes' : ''} since you saved this plan, so it
+              doesn't include your latest results.
+              <button className="plan-action-btn plan-action-btn-primary" onClick={handleResetPlan} disabled={savingPlan}>
+                Update with latest results
+              </button>
+            </div>
+          )}
 
           {/* Day rows */}
           <div className="timetable-wrapper">

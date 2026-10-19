@@ -4,6 +4,7 @@ Ported from the standalone Adaptive-quiz project; collection names are kept so a
 existing ``stem_assessment`` database works unchanged.
 """
 import re
+import unicodedata
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -155,6 +156,8 @@ class StudyPlan(Document):
 
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Registration: lowercase letters, digits and . _ % + - only
+_STRICT_EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")
 
 
 # Pydantic request bodies (not persisted)
@@ -181,13 +184,19 @@ class RegisterBody(BaseModel):
         v = v.strip()
         if len(v) < 2:
             raise ValueError("Name must be at least 2 characters")
-        return v
+        # Letters (any script, incl. Sinhala/Tamil) and single spaces between words only
+        if not all(w.isalpha() or all(c.isalpha() or unicodedata.category(c).startswith("M") for c in w)
+                   for w in v.split()):
+            raise ValueError("Name can contain letters and spaces only")
+        return " ".join(v.split())
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
-        v = v.strip().lower()
-        if not _EMAIL_RE.match(v):
+        v = v.strip()
+        if any(c.isupper() for c in v):
+            raise ValueError("Email must use simple (lowercase) letters only")
+        if not _STRICT_EMAIL_RE.match(v):
             raise ValueError("Enter a valid email address")
         return v
 

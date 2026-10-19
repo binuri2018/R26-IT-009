@@ -620,6 +620,20 @@
   color: #16a34a;
 }
 
+.plan-stale-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 181, 74, 0.45);
+  background: rgba(245, 181, 74, 0.12);
+  color: #8a5a00;
+  font-size: 13px;
+}
+
 .timetable-day-row.editing { cursor: pointer; }
 
 .add-session-btn {
