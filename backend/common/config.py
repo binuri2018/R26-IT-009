@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     # Bounded concurrency for the per-claim verify/repair fan-out (backend/components/knowledge_maps/concurrency.py).
     m4_verify_max_workers: int = 5
     m4_web_search_timeout_seconds: float = 8.0
+    # Fast verify: local sentence split + one batched LLM verdict call, no web fallback.
+    # Trades accuracy for speed on small GPUs (see verification.verify_text_fast).
+    m4_verify_fast: bool = False
+    # Optional smaller Ollama model for fast verify (e.g. qwen2.5:3b fits a 4 GB GPU); empty = M4_OLLAMA_MODEL.
+    m4_verify_model: str = ""
 
     # ── Adaptive Quiz component ──────────────────────────────────────────────
     # MongoDB connection string (Beanie + PyMongo async). When unset the quiz

@@ -67,6 +67,20 @@ async def lifespan(_: FastAPI):
             except EmbeddingLoadError as exc:
                 logger.warning("Local embeddings not ready: %s", exc)
 
+        async def _warm_knowledge_maps_retriever(store: VectorStore) -> None:
+            # Builds BM25 + loads the reranker so the first Verify doesn't pay ~10 s.
+            try:
+                from backend.components.knowledge_maps.hybrid_retrieval import get_hybrid_retriever
+
+                await asyncio.to_thread(
+                    lambda: get_hybrid_retriever(store).retrieve("photosynthesis", final_k=1)
+                )
+                logger.info("Knowledge Maps retriever warmed up")
+            except Exception:  # noqa: BLE001
+                logger.exception("Knowledge Maps retriever warmup failed")
+
+        asyncio.create_task(_warm_knowledge_maps_retriever(loaded))
+
     # Adaptive Quiz component — isolated so a missing MONGO_URI or offline DB
     # never blocks the rest of the app.
     try:

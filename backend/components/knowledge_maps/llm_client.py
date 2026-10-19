@@ -279,6 +279,7 @@ def _json_mode_call(
     messages: list[dict[str, Any]],
     function: dict[str, Any],
     temperature: float,
+    limits: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     formats = [
         {
@@ -298,6 +299,7 @@ def _json_mode_call(
                 messages=fallback_messages,
                 response_format=response_format,
                 temperature=temperature,
+                **(limits or {}),
                 **_ollama_extras(),
             )
         except BadRequestError:
@@ -315,12 +317,20 @@ def chat_with_tools(
     tools: list[dict[str, Any]],
     tool_choice: dict[str, Any] | str | None = None,
     temperature: float = 0.1,
+    max_tokens: int | None = None,
+    ollama_model: str | None = None,
 ) -> dict[str, Any]:
-    """Return structured arguments, with JSON mode as a tool-call fallback."""
+    """Return structured arguments, with JSON mode as a tool-call fallback.
+
+    ``ollama_model`` overrides the configured model for this call (Ollama only).
+    """
     if not tools:
         raise ValueError("At least one tool schema is required")
     client, model = _client_and_model()
+    if ollama_model and settings.m4_llm_provider == "ollama":
+        model = ollama_model
     prepared_messages = _prepare_messages(messages)
+    limits = {"max_tokens": max_tokens} if max_tokens else {}
     try:
         response = client.chat.completions.create(
             model=model,
@@ -328,6 +338,7 @@ def chat_with_tools(
             tools=tools,
             tool_choice=tool_choice or "auto",
             temperature=temperature,
+            **limits,
             **_ollama_extras(),
         )
     except BadRequestError:
@@ -347,7 +358,7 @@ def chat_with_tools(
         (tool["function"] for tool in tools if tool["function"].get("name") == chosen_name),
         tools[0]["function"],
     )
-    parsed = _json_mode_call(client, model, prepared_messages, function, temperature)
+    parsed = _json_mode_call(client, model, prepared_messages, function, temperature, limits)
     if parsed:
         return parsed
     raise RuntimeError(f"Model did not return valid structured output for {function['name']}")

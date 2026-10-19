@@ -13,3 +13,4 @@ backend/components/narrative_learning/science_vector_db/
 !backend/model/best.pt
 !backend/components/adaptive_quiz/models/learning_state_model.pkl
 !ml-service/models/learning_state_model.pkl
+.venv-macos-old/

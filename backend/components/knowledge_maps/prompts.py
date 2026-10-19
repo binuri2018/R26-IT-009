@@ -278,7 +278,11 @@ VERDICT_SYSTEM = (
     "Return an empty evidence_ids list when none of the excerpts justifies it. "
     "Give a concise explanation (1–2 sentences). "
     "If incorrect or incomplete, provide a corrected version and a short memory tip "
-    "a student can use to remember the right answer."
+    "a student can use to remember the right answer.\n"
+    "Rules: If the excerpt states the same fact, even in different words or units "
+    "(e.g. 100 °C = 373 K), the verdict is 'correct'. Use 'incorrect' ONLY when the excerpt "
+    "states something that conflicts with the claim. Write the explanation first "
+    "(one sentence), then choose the verdict that matches it."
 )
 
 VERDICT_TOOL: dict[str, Any] = {
@@ -288,31 +292,37 @@ VERDICT_TOOL: dict[str, Any] = {
         "description": "Return the verdict for one student claim vs syllabus context.",
         "parameters": {
             "type": "object",
+            # Explanation comes first so small local models reason before deciding;
+            # maxLength stops the explanation running on until the token cap.
             "properties": {
+                "explanation": {
+                    "type": "string",
+                    "maxLength": 220,
+                    "description": "One sentence: what the excerpt says compared with the claim.",
+                },
                 "verdict": {
                     "type": "string",
                     "enum": ["correct", "incorrect", "incomplete", "insufficient_evidence"],
                     "description": "Verdict based solely on the syllabus context provided.",
                 },
-                "explanation": {
-                    "type": "string",
-                    "description": "1–2 sentence explanation of the verdict.",
+                "evidence_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 3,
+                    "description": "IDs such as S1 for excerpts that directly justify the verdict.",
                 },
                 "corrected_version": {
                     "type": "string",
+                    "maxLength": 160,
                     "description": "Corrected claim (only when verdict is incorrect or incomplete).",
                 },
                 "memory_tip": {
                     "type": "string",
+                    "maxLength": 120,
                     "description": "Short mnemonic or tip for a student to remember the correct fact.",
                 },
-                "evidence_ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "IDs such as S1 for excerpts that directly justify the verdict.",
-                },
             },
-            "required": ["verdict", "explanation", "evidence_ids"],
+            "required": ["explanation", "verdict", "evidence_ids"],
         },
     },
 }

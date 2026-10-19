@@ -76,7 +76,11 @@ class QuestionGenerator:
     def __init__(self):
         self.tokenizer, model = _load_t5_from_hub(MODEL_NAME)
         # int8 dynamic quantization — ~2x faster on CPU, negligible quality loss
-        if _DEVICE.type == "cpu":
+        # Apple Silicon/ARM ships qnnpack but leaves the engine unset ("NoQEngine").
+        engines = torch.backends.quantized.supported_engines
+        if torch.backends.quantized.engine == "none" and "qnnpack" in engines:
+            torch.backends.quantized.engine = "qnnpack"
+        if _DEVICE.type == "cpu" and torch.backends.quantized.engine != "none":
             model = torch.quantization.quantize_dynamic(
                 model, {torch.nn.Linear}, dtype=torch.qint8
             )

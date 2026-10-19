@@ -125,7 +125,8 @@ def get_st_model() -> SentenceTransformer:
         _apply_certifi_ssl_if_requested()
         model_name = rt.get("embedding_model") or settings.embedding_model
         try:
-            _st_model = SentenceTransformer(model_name)
+            # CPU: Apple MPS segfaults when Member 4 encodes from parallel worker threads.
+            _st_model = SentenceTransformer(model_name, device="cpu")
         except Exception as exc:
             msg = f"{type(exc).__name__}: {exc}"
             if (

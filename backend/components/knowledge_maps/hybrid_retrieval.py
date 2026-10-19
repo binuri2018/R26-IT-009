@@ -145,13 +145,15 @@ class LazyCrossEncoderReranker:
                 raise RuntimeError(self.error)
             self._attempted = True
             try:
+                kwargs = {"revision": self.revision} if self.revision else {}
                 if self._model_loader is None:
                     from sentence_transformers import CrossEncoder
                     loader = CrossEncoder
+                    # CPU: Apple MPS segfaults when verify reranks from parallel threads.
+                    kwargs["device"] = "cpu"
                 else:
                     loader = self._model_loader
 
-                kwargs = {"revision": self.revision} if self.revision else {}
                 self._model = loader(self.model_name, **kwargs)
                 config = getattr(getattr(self._model, "model", None), "config", None)
                 self.resolved_revision = getattr(config, "_commit_hash", None) or self.revision
