@@ -8,7 +8,8 @@ import LottiePlayer from '../components/brand/LottiePlayer';
 import adaptiveQuizAnimation from '../assets/lottie/adaptive-quiz.json';
 import './LoginPage.css';
 
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+// Lowercase ("simple") letters only — no capitals anywhere in the address
+const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
 
 // Per-field rules. Each returns an error string, or '' when the value is valid.
 const FIELD_RULES = {
@@ -23,12 +24,14 @@ const FIELD_RULES = {
     const s = v.trim();
     if (!s) return 'Full name is required';
     if (s.length < 2) return 'Name must be at least 2 characters';
-    if (!/^[\p{L}\p{M}][\p{L}\p{M}\s.'-]*$/u.test(s)) return 'Name has invalid characters';
+    // Letters and spaces only (Sinhala/Tamil letters allowed) — no numbers or symbols
+    if (!/^[\p{L}\p{M}]+(\s+[\p{L}\p{M}]+)*$/u.test(s)) return 'Name can contain letters and spaces only';
     return '';
   },
   email: (v) => {
     const s = v.trim();
     if (!s) return 'Email address is required';
+    if (/[A-Z]/.test(s)) return 'Email must use simple (lowercase) letters only';
     if (!EMAIL_RE.test(s)) return 'Enter a valid email address';
     return '';
   },

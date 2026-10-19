@@ -492,8 +492,31 @@ async def get_all_reports(_teacher: TeacherDep, lessonId: str | None = None):
         )
     else:
         reps = await AssessmentReport.find_all().sort(-AssessmentReport.id).to_list()
-    payload = [document_legacy(r) for r in reps]
+    # Teachers see students by name, not by ID
+    ids = list({r.studentId for r in reps})
+    students = await Student.find({"studentId": {"$in": ids}}).to_list() if ids else []
+    name_of = {s.studentId: s.name for s in students}
+    payload = []
+    for r in reps:
+        item = document_legacy(r)
+        item["studentName"] = name_of.get(r.studentId)
+        payload.append(item)
     return {"success": True, "count": len(payload), "data": payload}
+
+
+@reports.delete("/student/{student_id}")
+async def delete_student_results(student_id: str, _teacher: TeacherDep):
+    """Remove one student's quiz results (reports, answers, saved study plans).
+
+    The student's account is kept, so they can still sign in and take quizzes again.
+    """
+    reps = await AssessmentReport.find(AssessmentReport.studentId == student_id).delete()
+    resps = await StudentResponse.find(StudentResponse.studentId == student_id).delete()
+    await StudyPlan.find(StudyPlan.studentId == student_id).delete()
+    n_reports = getattr(reps, "deleted_count", 0) or 0
+    if not n_reports and not (getattr(resps, "deleted_count", 0) or 0):
+        return JSONResponse(status_code=404, content={"success": False, "message": "No results found for this student"})
+    return {"success": True, "message": f"Deleted {n_reports} session report(s) for {student_id}"}
 
 
 @reports.get("/history/{student_id}")

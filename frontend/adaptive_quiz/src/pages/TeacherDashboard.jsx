@@ -67,6 +67,21 @@ const TeacherDashboard = () => {
     if (!needsKey) fetchReports(getTeacherKey());
   }, []);
 
+  // Remove one student's results (their account stays, so they can still take quizzes)
+  const handleDeleteStudent = async (studentId, name) => {
+    if (!window.confirm(`Delete all quiz results for ${name}? This cannot be undone.`)) return;
+    const API_URL = import.meta.env.VITE_API_URL || '/api/adaptive-quiz';
+    try {
+      const r = await fetch(`${API_URL}/reports/student/${encodeURIComponent(studentId)}`, {
+        method: 'DELETE', headers: { 'X-Teacher-Key': getTeacherKey() },
+      });
+      if (!r.ok && r.status !== 404) throw new Error(`HTTP ${r.status}`);
+      setReports(prev => prev.filter(rep => rep.studentId !== studentId));
+    } catch {
+      window.alert('Could not delete this student\'s results. Please try again.');
+    }
+  };
+
   const handleKeySubmit = (e) => {
     e.preventDefault();
     const key = keyInput.trim();
@@ -196,7 +211,7 @@ const TeacherDashboard = () => {
               <p style={{ fontSize:'13px', marginTop:'8px', color:'#9ca3af' }}>Student behavioral data will appear here once assessments are completed.</p>
             </div>
           ) : (
-            <StudentCards reports={reports} getExpressionEmoji={getExpressionEmoji} />
+            <StudentCards reports={reports} getExpressionEmoji={getExpressionEmoji} onDelete={handleDeleteStudent} />
           )}
         </div>
 
@@ -213,7 +228,10 @@ const TeacherDashboard = () => {
 };
 
 // ── Student Cards ─────────────────────────────────────────────────────────────
-function StudentCards({ reports, getExpressionEmoji }) {
+const initialsOf = (name) =>
+  name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+function StudentCards({ reports, getExpressionEmoji, onDelete }) {
   const [expanded, setExpanded] = React.useState({});
 
   // Group all sessions by studentId, sorted oldest→newest
@@ -230,7 +248,8 @@ function StudentCards({ reports, getExpressionEmoji }) {
       const emotion   = sessions[sessions.length - 1].mostCommonExpression || 'neutral';
       const weakAreas = [...new Set(sessions[sessions.length - 1].weakAreas || [])];
       const status    = avg >= 75 ? 'mastery' : avg >= 50 ? 'progressing' : 'intervention';
-      return { studentId, sessions, scores, avg, latest, trend, avgHints, emotion, weakAreas, status };
+      const name      = sessions.find(s => s.studentName)?.studentName || 'Unknown student';
+      return { studentId, name, sessions, scores, avg, latest, trend, avgHints, emotion, weakAreas, status };
     }).sort((a, b) => a.avg - b.avg); // worst performers first
   }, [reports]);
 
@@ -262,20 +281,37 @@ function StudentCards({ reports, getExpressionEmoji }) {
                     display:'flex', alignItems:'center', justifyContent:'center',
                     fontSize:'16px', fontWeight:'800', color:st.color,
                   }}>
-                    {g.studentId.slice(0,2).toUpperCase()}
+                    {initialsOf(g.name)}
                   </div>
                   <div>
-                    <div style={{ fontWeight:'800', color:'#111827', fontSize:'15px' }}>{g.studentId}</div>
+                    <div style={{ fontWeight:'800', color:'#111827', fontSize:'15px' }}>{g.name}</div>
                     <div style={{ fontSize:'11px', color:'#9ca3af' }}>
                       {g.sessions.length} session{g.sessions.length > 1 ? 's' : ''} · {g.sessions[0].lessonId}
                     </div>
                   </div>
                 </div>
-                <span style={{
-                  padding:'4px 10px', borderRadius:'20px', fontSize:'10px', fontWeight:'800',
-                  textTransform:'uppercase', letterSpacing:'0.5px',
-                  background:st.bg, color:st.color, border:`1px solid ${st.border}`,
-                }}>{st.label}</span>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <span style={{
+                    padding:'4px 10px', borderRadius:'20px', fontSize:'10px', fontWeight:'800',
+                    textTransform:'uppercase', letterSpacing:'0.5px',
+                    background:st.bg, color:st.color, border:`1px solid ${st.border}`,
+                  }}>{st.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(g.studentId, g.name)}
+                    title="Delete this student's results"
+                    aria-label={`Delete results for ${g.name}`}
+                    style={{
+                      width:'30px', height:'30px', borderRadius:'8px', cursor:'pointer',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      background:'#fff', border:'1px solid rgba(239,68,68,0.3)', color:'#dc2626',
+                    }}
+                  >
+                    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                      <path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10M9 9v5M11 9v5" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Score row */}
