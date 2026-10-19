@@ -1,0 +1,514 @@
+{
+  "quiz": {
+    "rows": 140,
+    "classes": {
+      "partial_understanding": 38,
+      "weak_understanding": 38,
+      "needs_hint": 33,
+      "strong_understanding": 31
+    },
+    "models": [
+      {
+        "model": "Random Forest (deployed)",
+        "accuracy": 0.98,
+        "accuracy_std": 0.02276768207215603,
+        "f1_macro": 0.9797424536248067
+      },
+      {
+        "model": "Decision Tree",
+        "accuracy": 0.9571428571428571,
+        "accuracy_std": 0.03912303982179757,
+        "f1_macro": 0.9565174841498372
+      },
+      {
+        "model": "Logistic Regression",
+        "accuracy": 0.9614285714285714,
+        "accuracy_std": 0.030169588688489807,
+        "f1_macro": 0.9610337358719712
+      },
+      {
+        "model": "kNN (k=5)",
+        "accuracy": 0.9514285714285714,
+        "accuracy_std": 0.03010186786529353,
+        "f1_macro": 0.9505988276429452
+      },
+      {
+        "model": "Majority baseline",
+        "accuracy": 0.2642857142857143,
+        "accuracy_std": 0.01749635530559412,
+        "f1_macro": 0.10444444444444445
+      }
+    ],
+    "predict_latency_ms": 9.9
+  },
+  "emotion": {
+    "base_model": "yolov8s.pt",
+    "epochs": 60,
+    "train_imgsz": 640,
+    "classes": [
+      "negative",
+      "neutral",
+      "positive"
+    ],
+    "params_m": 11.1,
+    "precision": 0.84656,
+    "recall": 0.86631,
+    "f1": 0.8563211377395833,
+    "map50": 0.90498,
+    "map50_95": 0.7016,
+    "cpu_latency_ms": 146.7,
+    "infer_imgsz": 640
+  },
+  "narrative": {
+    "classifier_accuracy": 0.8033,
+    "classifier_f1": 0.7795,
+    "classifier_top2_real": 0.7423,
+    "story_fields_complete": 1.0,
+    "story_check_valid": 1.0,
+    "story_grounding": 0.896,
+    "story_latency_s": 24.75,
+    "story_fk_grade": 10.538,
+    "story_models": [
+      {
+        "model": "gemma3:4b",
+        "fields_complete": 1.0,
+        "check_valid": 1.0,
+        "latency_s": 24.75,
+        "grounding": 0.896
+      },
+      {
+        "model": "qwen2.5:3b",
+        "fields_complete": 0.982,
+        "check_valid": 0.25,
+        "latency_s": 24.5,
+        "grounding": 0.833
+      },
+      {
+        "model": "llama3.1",
+        "fields_complete": 1.0,
+        "check_valid": 1.0,
+        "latency_s": 91.55,
+        "grounding": 0.958
+      },
+      {
+        "model": "qwen2.5:0.5b",
+        "fields_complete": 0.804,
+        "check_valid": 0.375,
+        "latency_s": 5.45,
+        "grounding": 0.143
+      },
+      {
+        "model": "gemma4:cloud",
+        "fields_complete": 1.0,
+        "check_valid": 1.0,
+        "latency_s": 3.5,
+        "grounding": 1.0
+      }
+    ]
+  },
+  "retrieval": {
+    "queries": 100,
+    "corpus_chunks": 1062,
+    "methods": [
+      {
+        "method": "Dense (FAISS, MiniLM)",
+        "query_type": "sentence",
+        "recall@1": 0.52,
+        "recall@3": 0.75,
+        "recall@5": 0.83,
+        "mrr": 0.6477777777777779,
+        "latency_ms": 15.2
+      },
+      {
+        "method": "Hybrid (dense + BM25, RRF)",
+        "query_type": "sentence",
+        "recall@1": 0.76,
+        "recall@3": 0.89,
+        "recall@5": 0.93,
+        "mrr": 0.8316785714285715,
+        "latency_ms": 23.6
+      },
+      {
+        "method": "Hybrid + cross-encoder rerank",
+        "query_type": "sentence",
+        "recall@1": 0.85,
+        "recall@3": 0.93,
+        "recall@5": 0.95,
+        "mrr": 0.8945000000000001,
+        "latency_ms": 509.1
+      },
+      {
+        "method": "Dense (FAISS, MiniLM)",
+        "query_type": "keywords",
+        "recall@1": 0.36,
+        "recall@3": 0.54,
+        "recall@5": 0.62,
+        "mrr": 0.46977777777777774,
+        "latency_ms": 14.6
+      },
+      {
+        "method": "Hybrid (dense + BM25, RRF)",
+        "query_type": "keywords",
+        "recall@1": 0.49,
+        "recall@3": 0.75,
+        "recall@5": 0.84,
+        "mrr": 0.6406666666666666,
+        "latency_ms": 17.4
+      },
+      {
+        "method": "Hybrid + cross-encoder rerank",
+        "query_type": "keywords",
+        "recall@1": 0.73,
+        "recall@3": 0.83,
+        "recall@5": 0.9,
+        "mrr": 0.7898333333333334,
+        "latency_ms": 471.3
+      }
+    ]
+  },
+  "verify": {
+    "claims": 40,
+    "true_claims": 20,
+    "false_claims": 20,
+    "mode": "fast",
+    "verdict_model": "qwen2.5:3b",
+    "coverage": 0.95,
+    "accuracy_decisive": 0.8947368421052632,
+    "accuracy_overall": 0.85,
+    "error_detection_precision": 0.8181818181818182,
+    "error_detection_recall": 0.9,
+    "error_detection_f1": 0.8571428571428572,
+    "false_accepted": 0,
+    "median_claim_seconds": 19.13,
+    "wall_seconds": 174.4,
+    "workers": 4,
+    "per_claim": [
+      {
+        "claim": "Photosynthesis takes place in the chloroplasts of plant cells.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 16.08
+      },
+      {
+        "claim": "The SI unit of force is the newton.",
+        "truth": true,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 22.02
+      },
+      {
+        "claim": "Mitochondria are the site of aerobic respiration in cells.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 20.21
+      },
+      {
+        "claim": "Water boils at 100 \u00b0C at standard atmospheric pressure.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 10.03
+      },
+      {
+        "claim": "Sodium chloride is formed by ionic bonding between sodium and chlorine.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 8.08
+      },
+      {
+        "claim": "Ohm's law states that the current through a conductor is proportional to the potential difference across it at constant temperature.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 17.15
+      },
+      {
+        "claim": "The atomic number of an element is the number of protons in its nucleus.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 8.01
+      },
+      {
+        "claim": "Speed is the distance travelled divided by the time taken.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 17.97
+      },
+      {
+        "claim": "Enzymes are biological catalysts made of proteins.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 17.98
+      },
+      {
+        "claim": "In a series circuit the same current flows through every component.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 18.24
+      },
+      {
+        "claim": "Red blood cells carry oxygen using haemoglobin.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 17.54
+      },
+      {
+        "claim": "Acids turn blue litmus paper red.",
+        "truth": true,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 8.73
+      },
+      {
+        "claim": "The kinetic energy of a body is half its mass multiplied by the square of its velocity.",
+        "truth": true,
+        "verdict": "incomplete",
+        "source": "syllabus",
+        "seconds": 20.64
+      },
+      {
+        "claim": "Plant cells have a cell wall made of cellulose.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 20.6
+      },
+      {
+        "claim": "Electrolysis uses an electric current to cause a chemical reaction.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 20.13
+      },
+      {
+        "claim": "Covalent bonds are formed by sharing electrons between atoms.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 22.95
+      },
+      {
+        "claim": "Power is the rate of doing work and is measured in watts.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 20.07
+      },
+      {
+        "claim": "Mixtures can be separated by physical methods such as filtration and distillation.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 20.22
+      },
+      {
+        "claim": "Xylem transports water and minerals from the roots to the leaves.",
+        "truth": true,
+        "verdict": "correct",
+        "source": "syllabus",
+        "seconds": 20.15
+      },
+      {
+        "claim": "The heart pumps oxygenated blood to the body through the aorta.",
+        "truth": true,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 9.27
+      },
+      {
+        "claim": "Photosynthesis takes place in the mitochondria of plant cells.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 9.38
+      },
+      {
+        "claim": "The SI unit of force is the joule.",
+        "truth": false,
+        "verdict": "insufficient_evidence",
+        "source": "none",
+        "seconds": 22.22
+      },
+      {
+        "claim": "Ribosomes are the site of aerobic respiration in cells.",
+        "truth": false,
+        "verdict": "insufficient_evidence",
+        "source": "none",
+        "seconds": 22.34
+      },
+      {
+        "claim": "Water boils at 50 \u00b0C at standard atmospheric pressure.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 14.14
+      },
+      {
+        "claim": "Sodium chloride is formed by covalent bonding between sodium and chlorine.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 13.13
+      },
+      {
+        "claim": "Ohm's law states that the current through a conductor is inversely proportional to the potential difference across it.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 21.44
+      },
+      {
+        "claim": "The atomic number of an element is the number of neutrons in its nucleus.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 11.76
+      },
+      {
+        "claim": "Speed is the time taken divided by the distance travelled.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 12.58
+      },
+      {
+        "claim": "Enzymes are biological catalysts made of carbohydrates.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 23.47
+      },
+      {
+        "claim": "In a series circuit a different current flows through each component.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 20.34
+      },
+      {
+        "claim": "White blood cells carry oxygen using haemoglobin.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 20.02
+      },
+      {
+        "claim": "Acids turn red litmus paper blue.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 10.44
+      },
+      {
+        "claim": "The kinetic energy of a body is its mass multiplied by its velocity.",
+        "truth": false,
+        "verdict": "incomplete",
+        "source": "syllabus",
+        "seconds": 19.03
+      },
+      {
+        "claim": "Animal cells have a cell wall made of cellulose.",
+        "truth": false,
+        "verdict": "incomplete",
+        "source": "syllabus",
+        "seconds": 19.23
+      },
+      {
+        "claim": "Electrolysis is a chemical reaction that happens without any electric current.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 19.73
+      },
+      {
+        "claim": "Covalent bonds are formed by transferring electrons from one atom to another.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 19.37
+      },
+      {
+        "claim": "Power is the rate of doing work and is measured in newtons.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 22.03
+      },
+      {
+        "claim": "Mixtures can only be separated by chemical reactions.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 21.95
+      },
+      {
+        "claim": "Phloem transports water and minerals from the roots to the leaves.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 12.18
+      },
+      {
+        "claim": "The heart pumps oxygenated blood to the body through the pulmonary artery.",
+        "truth": false,
+        "verdict": "incorrect",
+        "source": "syllabus",
+        "seconds": 12.08
+      }
+    ]
+  },
+  "voice": {
+    "chat_model": "qwen2.5:0.5b",
+    "questions": 5,
+    "success_rate": 1.0,
+    "median_seconds": 4.79,
+    "grounded_rate": 1.0,
+    "stt": "OpenAI whisper-1",
+    "tts": "tts-1",
+    "per_question": [
+      {
+        "question": "What is photosynthesis?",
+        "status": 200,
+        "seconds": 2.58,
+        "sources": 5,
+        "answer_words": 103
+      },
+      {
+        "question": "Explain Ohm's law.",
+        "status": 200,
+        "seconds": 4.79,
+        "sources": 5,
+        "answer_words": 258
+      },
+      {
+        "question": "What is the function of mitochondria?",
+        "status": 200,
+        "seconds": 2.06,
+        "sources": 5,
+        "answer_words": 15
+      },
+      {
+        "question": "What is the difference between ionic and covalent bonds?",
+        "status": 200,
+        "seconds": 7.88,
+        "sources": 5,
+        "answer_words": 199
+      },
+      {
+        "question": "How does electrolysis work?",
+        "status": 200,
+        "seconds": 252.07,
+        "sources": 5,
+        "answer_words": 22751
+      }
+    ]
+  }
+}

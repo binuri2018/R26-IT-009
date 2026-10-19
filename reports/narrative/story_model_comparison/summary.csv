@@ -1,0 +1,6 @@
+model,runs,json_first_try,fallback_rate,fields_complete,check_valid,latency_s,story_words,fk_grade,grounding,terms_in_story
+gemma3:4b,8,1.0,0.0,1.0,1.0,24.75,276.0,10.538,0.896,0.688
+qwen2.5:3b,8,1.0,0.125,0.982,0.25,24.5,153.0,10.329,0.833,0.635
+llama3.1,8,1.0,0.0,1.0,1.0,91.55,268.5,10.475,0.958,0.896
+qwen2.5:0.5b,8,1.0,0.625,0.804,0.375,5.45,0.0,8.3,0.143,0.0
+gemma4:cloud,8,1.0,0.0,1.0,1.0,3.5,271.5,10.588,1.0,0.938

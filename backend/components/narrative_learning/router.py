@@ -5,12 +5,22 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from backend.components.narrative_learning.classifier import classify, log_theme_feedback, survey_spec
+from backend.components.narrative_learning.classifier import (
+    classify,
+    log_story_feedback,
+    log_theme_feedback,
+    model_info,
+    model_live_accuracy,
+    story_feedback_summary,
+    survey_spec,
+)
+from backend.components.narrative_learning.model_config import active_model_name
 from backend.components.narrative_learning.schemas import (
     ClassifyRequest,
     ClassifyResponse,
     GenerateRequest,
     GenerateResponse,
+    StoryFeedbackRequest,
     ThemeFeedbackRequest,
 )
 from backend.components.narrative_learning.syllabus_data import CHAPTER_MAP
@@ -42,6 +52,9 @@ def status() -> dict:
         "index_path": VECTOR_DB_DIR,
         "classifier_mode": spec["classifier_mode"],
         "output_label": spec["output_label"],
+        "classifier": model_info(),
+        "classifier_live_agreement": model_live_accuracy(),
+        "story_model": active_model_name(),
     }
 
 
@@ -60,6 +73,20 @@ def classify_student(body: ClassifyRequest) -> ClassifyResponse:
 def theme_feedback(body: ThemeFeedbackRequest) -> dict:
     log_theme_feedback(body.theme, body.matched, body.interest, body.aspiration)
     return {"ok": True}
+
+
+@router.post("/story-feedback")
+def story_feedback(body: StoryFeedbackRequest) -> dict:
+    row = body.model_dump()
+    if body.check_correct is not None:
+        row["check_correct"] = "yes" if body.check_correct else "no"
+    log_story_feedback(row)
+    return {"ok": True}
+
+
+@router.get("/story-feedback/summary")
+def story_feedback_stats() -> dict:
+    return story_feedback_summary()
 
 
 @router.get("/chapters")
@@ -111,12 +138,14 @@ def generate(body: GenerateRequest) -> GenerateResponse:
 
     return GenerateResponse(
         theme=theme,
+        model=active_model_name(),
         classifier_method=classified.get("method") or "",
         science_intro=data.get("science_intro") or {},
         story=data.get("story") or "",
         key_definitions=data.get("key_definitions") or [],
         key_equations=data.get("key_equations") or [],
         exam_bullets=data.get("exam_bullets") or [],
+        check_question=data.get("check_question") if isinstance(data.get("check_question"), dict) else {},
         quiz_topic=data.get("quiz_topic") or body.topic,
         sources=data.get("sources") or [],
     )

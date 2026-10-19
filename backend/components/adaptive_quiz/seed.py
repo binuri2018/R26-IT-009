@@ -16,6 +16,8 @@ LESSON_DATA = {
     "title": "The Human Heart",
     "subject": "Biology",
     "gradeLevel": "Grade 10",
+    "grade": 10,
+    "part": 1,
     "arModuleId": "ar-heart-v1",
     "description": (
         "Explore the structure and function of the human heart. Learn about the four chambers, "

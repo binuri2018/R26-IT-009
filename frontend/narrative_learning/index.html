@@ -7,14 +7,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Noto+Sans+Sinhala:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Noto+Sans+Sinhala:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/common/css/global.css" />
-    <link rel="stylesheet" href="/static/narrative_learning/narrative.css?v=2" />
+    <link rel="stylesheet" href="/static/narrative_learning/narrative.css?v=8" />
   </head>
   <body>
-    <div class="shell">
+    <div class="shell shell--quiz-skin">
       <aside class="sidebar">
         <a href="/" class="sidebar-brand">
           <div class="sidebar-logo" aria-hidden="true">
@@ -71,16 +71,29 @@
               <div class="module-icon-sm narrative-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.396 0 2.7.405 3.8 1.104A7.968 7.968 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.969 7.969 0 0014.5 4c-1.396 0-2.7.405-3.8 1.104A7.968 7.968 0 0110 4.804z"/></svg></div>
               <h2 class="page-title">Narrative Learning</h2>
             </div>
-            <div id="health-pill" class="health-pill">Checking...</div>
+          </div>
+
+          <div class="nl-hero">
+            <div class="nl-hero-top">
+              <div>
+                <span class="nl-eyebrow">Learn · Tell · Show</span>
+                <h1>A story that adapts to how you learn</h1>
+                <p>Answer a few questions, pick a chapter, then read the science first and see it play out in a scene.</p>
+              </div>
+              <div id="health-pill" class="health-pill">Checking...</div>
+            </div>
           </div>
 
           <div class="workspace phase-survey" id="workspace">
             <div class="panel glass-card" id="step-survey">
-              <div class="q-dots" id="q-dots" aria-hidden="true"></div>
-              <p class="q-count" id="q-count"></p>
-              <h3 class="step-title" id="q-prompt">Loading…</h3>
+              <div class="q-head">
+                <span class="field-label q-label">Find your story style</span>
+                <span class="q-count" id="q-count"></span>
+              </div>
+              <div class="q-bar" aria-hidden="true"><div class="q-bar-fill" id="q-bar-fill"></div></div>
+              <h3 class="step-title q-prompt" id="q-prompt">Loading…</h3>
               <div class="choice-list" id="q-options"></div>
-              <div class="q-nav">
+              <div class="q-nav q-nav--split">
                 <button id="btn-q-back" class="btn ghost" type="button">Back</button>
                 <button id="btn-q-next" class="btn primary" type="button">Next</button>
               </div>
@@ -91,6 +104,7 @@
               <p class="field-label">Your story style</p>
               <h3 class="theme-name" id="theme-name"></h3>
               <p class="step-cap" id="theme-blurb"></p>
+              <div id="theme-model" class="theme-model hidden"></div>
               <p class="step-title" style="margin-top:1.2rem">Does this feel like you?</p>
               <p class="step-cap">Tell us if the style matches — it helps the next version of the classifier.</p>
               <div class="q-nav">
@@ -133,8 +147,25 @@
               </div>
               <div class="panel glass-card">
                 <h3 class="step-title">See it in action</h3>
-                <p class="step-cap">Spot the science concept playing out in the scene.</p>
+                <p class="step-cap">Spot the science concept playing out in the scene. Tap a <span class="term term--demo">highlighted word</span> to see what it means.</p>
                 <div id="story-box" class="story-box"></div>
+                <div id="check-block" class="check-block hidden">
+                  <p class="check-eyebrow">Quick check</p>
+                  <p id="check-question" class="check-question"></p>
+                  <div id="check-options" class="check-options"></div>
+                  <p id="check-feedback" class="check-feedback hidden"></p>
+                </div>
+                <div id="rate-block" class="rate-block">
+                  <p class="rate-q">Did this story help you understand?</p>
+                  <div class="rate-row" id="rate-row">
+                    <button type="button" class="rate-btn" data-r="1" title="Not at all">😕</button>
+                    <button type="button" class="rate-btn" data-r="2" title="A little">🙁</button>
+                    <button type="button" class="rate-btn" data-r="3" title="Okay">😐</button>
+                    <button type="button" class="rate-btn" data-r="4" title="Yes">🙂</button>
+                    <button type="button" class="rate-btn" data-r="5" title="A lot!">🤩</button>
+                  </div>
+                  <p id="rate-thanks" class="rate-thanks hidden">Thanks! This helps us make better stories.</p>
+                </div>
                 <div class="actions">
                   <a id="quiz-link" class="btn primary" href="/adaptive-quiz">Go to Adaptive Quiz</a>
                   <a class="btn ghost" href="/narrative-learning">New topic</a>
@@ -157,6 +188,6 @@
       { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js" } }
     </script>
     <script type="module" src="/static/narrative_learning/scene.js"></script>
-    <script src="/static/narrative_learning/narrative.js?v=3"></script>
+    <script src="/static/narrative_learning/narrative.js?v=7"></script>
   </body>
 </html>

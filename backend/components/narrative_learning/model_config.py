@@ -33,6 +33,14 @@ OPENROUTER_MODEL = os.getenv(
 )
 
 
+def active_model_name() -> str:
+    if LLM_PROVIDER == "groq":
+        return f"groq:{GROQ_MODEL}"
+    if LLM_PROVIDER == "openrouter":
+        return f"openrouter:{OPENROUTER_MODEL}"
+    return f"ollama:{OLLAMA_LLM_MODEL}"
+
+
 def get_embeddings():
     from langchain_ollama import OllamaEmbeddings
 

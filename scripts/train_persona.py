@@ -18,11 +18,50 @@ import argparse
 import pickle
 from pathlib import Path
 
+import json
+from datetime import datetime, timezone
+
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
-from sklearn.preprocessing import LabelEncoder
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import CategoricalNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
+from sklearn.tree import DecisionTreeClassifier
+
+FEATURES = ["Interest", "Aspiration", "Struggle_Level"]
+MODEL_FORMAT = "pipeline-v2"
+
+
+def _rf(**kw):
+    return RandomForestClassifier(n_estimators=200, max_depth=5, min_samples_leaf=2,
+                                  class_weight="balanced", random_state=42, **kw)
+
+
+def candidate_models() -> dict:
+    """Every model takes the raw categorical columns in FEATURES and supports predict_proba."""
+    def onehot(m):
+        return make_pipeline(OneHotEncoder(handle_unknown="ignore"), m)
+
+    def ordinal(m):
+        return make_pipeline(OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), m)
+
+    return {
+        "Majority baseline": onehot(DummyClassifier(strategy="most_frequent")),
+        "Random Forest (v1: ordinal encoding)": ordinal(_rf()),
+        "Random Forest (one-hot)": onehot(_rf()),
+        "Decision Tree (one-hot)": onehot(DecisionTreeClassifier(max_depth=5, class_weight="balanced",
+                                                                 random_state=42)),
+        "Logistic Regression (one-hot)": onehot(LogisticRegression(max_iter=2000, class_weight="balanced")),
+        "Categorical Naive Bayes": make_pipeline(
+            OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=29),
+            CategoricalNB(min_categories=30)),
+        "kNN k=5 (one-hot)": onehot(KNeighborsClassifier(n_neighbors=5)),
+        "Gradient Boosting (one-hot)": onehot(GradientBoostingClassifier(random_state=42)),
+    }
 
 THEMES = [
     "Action & Competition",
@@ -121,10 +160,11 @@ STRUGGLE_MAP = {
     "high": "High",
 }
 
-_REPO = Path(__file__).resolve().parents[1]
+_REPO = next(p for p in Path(__file__).resolve().parents if (p / "backend").is_dir())
 _STEM_TEXT_CSV = Path(r"C:\STEM TEXT\sri_lankan_student.csv")
-DEFAULT_BASE = Path(__file__).with_name("sri_lankan_student.csv")
+DEFAULT_BASE = _REPO / "scripts" / "sri_lankan_student.csv"
 DEFAULT_OUT = _REPO / "backend" / "components" / "narrative_learning"
+DEFAULT_SURVEY = _REPO / "data" / "narrative" / "rp_survey_responses.xlsx"
 
 
 def _norm(value) -> str:
@@ -274,7 +314,11 @@ def main() -> None:
                         help="Weight for each real survey row (default 3 so ~30 rows are not drowned)")
     parser.add_argument("--synthetic-weight", type=float, default=1.0)
     parser.add_argument("--no-synthetic", action="store_true", help="Train on survey rows only")
+    parser.add_argument("--model", default="Logistic Regression (one-hot)",
+                        help="Name from candidate_models(); pick it with scripts/compare_persona_classifiers.py")
     args = parser.parse_args()
+    if args.survey is None and DEFAULT_SURVEY.is_file():
+        args.survey = DEFAULT_SURVEY
 
     frames = []
     if not args.no_synthetic:
@@ -296,8 +340,8 @@ def main() -> None:
     print("\nInterest x theme:")
     print(pd.crosstab(df["Interest"], df["Story_Theme"]))
 
-    cleaned = args.out_dir / "training_rows.csv"
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+    cleaned = _REPO / "data" / "narrative" / "training_rows.csv"
+    cleaned.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(cleaned, index=False)
     print(f"\nWrote cleaned rows to {cleaned}")
 
@@ -308,47 +352,107 @@ def main() -> None:
     if df["Story_Theme"].nunique() < 2:
         raise SystemExit("Need at least two theme classes to train.")
 
-    le_interest = LabelEncoder()
-    le_aspiration = LabelEncoder()
-    le_theme = LabelEncoder()
-    X = pd.DataFrame({
-        "Interest_Encoded": le_interest.fit_transform(df["Interest"]),
-        "Aspiration_Encoded": le_aspiration.fit_transform(df["Aspiration"]),
-    })
-    y = le_theme.fit_transform(df["Story_Theme"])
-    weights = np.where(
-        df["source"].eq("survey"),
-        args.survey_weight,
-        args.synthetic_weight,
-    )
+    models = candidate_models()
+    if args.model not in models:
+        raise SystemExit(f"Unknown --model {args.model!r}. Choose from: {list(models)}")
 
-    clf = RandomForestClassifier(
-        n_estimators=200,
-        random_state=42,
-        max_depth=5,
-        class_weight="balanced",
-        min_samples_leaf=2,
-    )
-    clf.fit(X, y, sample_weight=weights)
-    print(f"\nTrain accuracy (weighted fit, unweighted score): {clf.score(X, y)*100:.1f}%")
+    metrics = {}
+    survey_rows = df[df["source"].eq("survey")]
+    if not args.no_synthetic and len(survey_rows) >= 9:
+        syn_rows = df[df["source"].eq("synthetic")]
+        metrics = evaluate_on_survey(models[args.model], syn_rows, survey_rows,
+                                     survey_weight=args.survey_weight)["C"]
+        print(f"\nHeld-out accuracy on real survey answers (synthetic + 2/3 survey -> 1/3 survey): "
+              f"{metrics['acc']*100:.1f}% ± {metrics['acc_std']*100:.1f}, macro-F1 {metrics['f1']*100:.1f}%")
 
-    n_classes = df["Story_Theme"].nunique()
-    min_class = int(df["Story_Theme"].value_counts().min())
-    if len(df) >= 15 and min_class >= 2:
-        folds = min(5, min_class)
-        cv = StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)
-        scores = cross_val_score(clf, X, y, cv=cv)
-        print(f"CV accuracy: {scores.mean()*100:.1f}% ± {scores.std()*100:.1f}%  ({folds}-fold)")
-    else:
-        print("Skipped CV (a theme has fewer than 2 rows).")
+    dataset_metrics = {}
+    if not args.no_synthetic and len(survey_rows) >= 9:
+        from persona_classifier_metrics import pooled_cv, real_topk
 
-    print("Theme classes:", list(le_theme.classes_))
+        pooled = pooled_cv(models[args.model], syn_rows, survey_rows, repeats=10)
+        topk = real_topk(models[args.model], syn_rows, survey_rows, args.survey_weight, repeats=10)
+        dataset_metrics = {
+            "acc": round(float(pooled["pooled_acc"]), 3),
+            "acc_std": round(float(pooled["pooled_acc_std"]), 3),
+            "f1": round(float(pooled["pooled_f1"]), 3),
+            "real_top2": round(float(topk["real_top2"]), 3),
+            "real_top3": round(float(topk["real_top3"]), 3),
+        }
+        print(f"Full dataset (5-fold CV): accuracy {dataset_metrics['acc']*100:.1f}% ± {dataset_metrics['acc_std']*100:.1f}, "
+              f"macro-F1 {dataset_metrics['f1']*100:.1f}% | real students top-2 {dataset_metrics['real_top2']*100:.1f}%")
+
+    weights = np.where(df["source"].eq("survey"), args.survey_weight, args.synthetic_weight)
+    clf = fit_weighted(models[args.model], df[FEATURES], df["Story_Theme"], weights)
+    print(f"Train accuracy: {(clf.predict(df[FEATURES]) == df['Story_Theme']).mean()*100:.1f}%")
+    print("Theme classes:", list(clf.classes_))
+
+    args.out_dir.mkdir(parents=True, exist_ok=True)
     with open(args.out_dir / "persona_model.pkl", "wb") as f:
         pickle.dump(clf, f)
-    with open(args.out_dir / "encoder.pkl", "wb") as f:
-        pickle.dump({"interest": le_interest, "aspiration": le_aspiration, "theme": le_theme}, f)
-    print(f"Wrote {args.out_dir / 'persona_model.pkl'} and encoder.pkl")
-    print("Then set USE_TRAINED_CLASSIFIER=1 in .env and restart the app.")
+    meta = {
+        "format": MODEL_FORMAT,
+        "model": args.model,
+        "features": FEATURES,
+        "classes": [str(c) for c in clf.classes_],
+        "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "rows": {k: int(v) for k, v in df["source"].value_counts().items()},
+        "survey_weight": args.survey_weight,
+        "metrics": dataset_metrics,
+        "heldout_survey_metrics": metrics,
+    }
+    (args.out_dir / "persona_model.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    legacy = args.out_dir / "encoder.pkl"
+    if legacy.is_file():
+        legacy.unlink()
+    print(f"Wrote {args.out_dir / 'persona_model.pkl'} and persona_model.json. Restart the app to load it.")
+
+
+def fit_weighted(model, X, y, weights=None):
+    from sklearn.base import clone
+
+    m = clone(model)
+    if weights is not None:
+        try:
+            m.fit(X, y, **{f"{m.steps[-1][0]}__sample_weight": weights})
+            return m
+        except TypeError:
+            pass
+    m.fit(X, y)
+    return m
+
+
+def evaluate_on_survey(model, syn: pd.DataFrame, sur: pd.DataFrame, survey_weight: float = 3.0,
+                       repeats: int = 10) -> dict:
+    """Score a model on real survey answers only.
+
+    A: train on synthetic, test on all survey rows.
+    B: survey-only stratified CV.
+    C: train on synthetic + survey train folds (weighted), test on the survey test fold.
+    """
+    from sklearn.metrics import accuracy_score, f1_score
+    from sklearn.model_selection import RepeatedStratifiedKFold
+
+    def score(m, X, y):
+        p = m.predict(X)
+        return accuracy_score(y, p), f1_score(y, p, average="macro", zero_division=0)
+
+    Xs, ys = sur[FEATURES], sur["Story_Theme"]
+    res = {"A": [score(fit_weighted(model, syn[FEATURES], syn["Story_Theme"]), Xs, ys)], "B": [], "C": []}
+    folds = min(3, int(ys.value_counts().min()))
+    cv = RepeatedStratifiedKFold(n_splits=folds, n_repeats=repeats, random_state=42)
+    for tr, te in cv.split(Xs, ys):
+        res["B"].append(score(fit_weighted(model, Xs.iloc[tr], ys.iloc[tr]), Xs.iloc[te], ys.iloc[te]))
+        Xc = pd.concat([syn[FEATURES], Xs.iloc[tr]])
+        yc = pd.concat([syn["Story_Theme"], ys.iloc[tr]])
+        w = np.r_[np.ones(len(syn)), np.full(len(tr), survey_weight)]
+        res["C"].append(score(fit_weighted(model, Xc, yc, w), Xs.iloc[te], ys.iloc[te]))
+    out = {}
+    for k, vals in res.items():
+        a = np.array(vals)
+        out[k] = {"acc": round(float(a[:, 0].mean()), 3), "acc_std": round(float(a[:, 0].std()), 3),
+                  "f1": round(float(a[:, 1].mean()), 3)}
+    out["folds"] = folds
+    return out
 
 
 if __name__ == "__main__":

@@ -1,0 +1,4 @@
+model,pooled_acc,pooled_acc_std,pooled_f1,real_top1,real_top2,real_top3,real_conf0.4_acc,real_conf0.4_coverage,real_conf0.5_acc,real_conf0.5_coverage,real_conf0.6_acc,real_conf0.6_coverage
+Random Forest (one-hot),0.8033,0.0803,0.7795,0.5538,0.7423,0.8308,0.8125,0.4308,0.8133,0.2885,0.75,0.1692
+Categorical Naive Bayes,0.7522,0.0755,0.7064,0.5615,0.7615,0.85,0.5789,0.95,0.6042,0.7385,0.6061,0.6346
+Logistic Regression (one-hot),0.7911,0.0716,0.7647,0.4846,0.7538,0.8154,0.5487,0.8692,0.6168,0.6423,0.7295,0.4692

@@ -1,6 +1,5 @@
 import os
 import json
-import pickle
 import re
 import warnings
 import logging
@@ -20,9 +19,6 @@ from backend.components.narrative_learning.model_config import (
     get_embeddings,
     get_llm,
 )
-
-_PERSONA_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persona_model.pkl")
-_ENCODER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "encoder.pkl")
 
 
 def _llm_text(response):
@@ -214,54 +210,12 @@ class StoryEngine:
             embedding_function=embeddings,
         )
 
-        # 2. Load ML Persona Model & Encoders (The "Vibe")
-        try:
-            with open(_PERSONA_MODEL_PATH, 'rb') as f:
-                self.persona_model = pickle.load(f)
-            with open(_ENCODER_PATH, 'rb') as f:
-                self.encoders = pickle.load(f)
-            self.has_model = True
-            print("Successfully loaded ML Persona models.")
-        except FileNotFoundError:
-            print("Warning: persona_model.pkl or encoder.pkl not found.")
-            self.has_model = False
-
         self.llm = get_llm()
         if LLM_PROVIDER == "ollama":
             try:
                 self.llm.invoke('{"ok": true}')
             except Exception:
                 pass
-
-    def get_theme_for_student(self, interest, aspiration):
-        """Predicts the story theme using the trained ML model."""
-        if not self.has_model:
-            return "Adventure"
-
-        try:
-            le_interest   = self.encoders['interest']
-            le_aspiration = self.encoders['aspiration']
-            le_theme      = self.encoders['theme']
-            i_enc = le_interest.transform([interest])[0]
-            a_enc = le_aspiration.transform([aspiration])[0]
-
-            import pandas as pd
-            X_pred = pd.DataFrame([[i_enc, a_enc]],
-                                  columns=['Interest_Encoded', 'Aspiration_Encoded'])
-            pred  = self.persona_model.predict(X_pred)
-            return le_theme.inverse_transform(pred)[0]
-        except Exception as e:
-            # Graceful degradation — map common interests manually
-            fallback = {
-                "Cricket": "Sports Adventure",
-                "Gaming": "Sci-Fi/Cyberpunk",
-                "Music": "Drama/Inspirational",
-                "Reading": "Mystery/Historical",
-                "Art": "Creative/Fantasy",
-                "Nature": "Exploration",
-                "Robotics": "Futuristic/Technology",
-            }
-            return fallback.get(interest, "Adventure")
 
     def get_story_context(self, topic, book_name=None):
         """Searches Chroma, skips header-only pages, then fills gaps from FAISS."""
@@ -382,7 +336,9 @@ Write EXACTLY 3 paragraphs, joined by \\n\\n. Each paragraph is 4-6 sentences (a
 Rules:
 - Connect the science to {interest}. Sri Lankan places and everyday objects are good.
 - No sci-fi gadgets, no questions to the reader, no "Imagine you are..." lecture.
-- Return one valid JSON object only. No markdown fences.
+- check_question: ONE multiple-choice question about THIS story and topic. Replace every <...> with real text. "answer" is the index of the correct option.
+- key_definitions: 2-4 short terms (1-3 words) that also appear word-for-word in the story; definitions in simple words a 15-year-old understands.
+- Return one valid JSON object only, with ALL keys below, in this order. No markdown fences.
 
 {{
     "science_intro": {{
@@ -391,7 +347,6 @@ Rules:
         "equations": ["F = ma"],
         "real_world_note": "One sentence."
     }},
-    "story": "Hook paragraph...\\n\\nAction paragraph...\\n\\nBridge paragraph with the textbook law...",
     "key_definitions": [
         {{"term": "Textbook term", "definition": "Textbook-style definition"}},
         {{"term": "Second term", "definition": "Its definition"}}
@@ -404,7 +359,14 @@ Rules:
         "O/L exam point 2",
         "O/L exam point 3"
     ],
-    "quiz_topic": "Short topic name (e.g. Moment of a Force)"
+    "check_question": {{
+        "question": "<why/what question about a moment in YOUR story>",
+        "options": ["<the right answer>", "<a believable wrong answer>", "<another believable wrong answer>"],
+        "answer": 0,
+        "explain": "<one friendly sentence on why the right answer is right>"
+    }},
+    "quiz_topic": "Short topic name (e.g. Moment of a Force)",
+    "story": "Hook paragraph...\\n\\nAction paragraph...\\n\\nBridge paragraph with the textbook law..."
 }}
 """
         )
