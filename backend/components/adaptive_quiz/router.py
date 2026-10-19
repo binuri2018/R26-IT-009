@@ -169,8 +169,20 @@ lessons = APIRouter(prefix="/lessons", dependencies=_DB)
 
 @lessons.get("")
 async def get_all_lessons():
-    rows = await Lesson.find(Lesson.isActive == True).sort(-Lesson.id).to_list()  # noqa: E712
-    return {"success": True, "count": len(rows), "data": [document_legacy(x) for x in rows]}
+    rows = await Lesson.find(Lesson.isActive == True).to_list()  # noqa: E712
+    # How many questions students can actually get per lesson (pending ones don't count)
+    counts = await Question.find(Question.status != "pending").aggregate(
+        [{"$group": {"_id": "$lessonId", "n": {"$sum": 1}}}]
+    ).to_list()
+    n_by_lesson = {c["_id"]: c["n"] for c in counts}
+    # Textbook order (Grade → Part → chapter); ad-hoc lessons after the textbook ones
+    rows.sort(key=lambda l: (l.grade is None, l.grade or 0, l.part or 0, l.chapterNo or 0, l.title))
+    payload = []
+    for lesson in rows:
+        item = document_legacy(lesson)
+        item["questionCount"] = n_by_lesson.get(lesson.lessonId, 0)
+        payload.append(item)
+    return {"success": True, "count": len(payload), "data": payload}
 
 
 @lessons.get("/{lesson_id}")
@@ -197,7 +209,7 @@ def _levels_payload(session: dict[int, list]) -> dict:
 async def get_adaptive_assessment_questions(lesson_id: str, student_id: str, _student: StudentDep):
     ensure_owner(student_id, _student)
     questions = (
-        await Question.find(Question.lessonId == lesson_id)
+        await Question.find(Question.lessonId == lesson_id, Question.status != "pending")
         .sort(+Question.quizLevel, +Question.order)
         .to_list()
     )
@@ -275,7 +287,11 @@ async def get_questions_by_level(lesson_id: str, level: str, _student: StudentDe
         return JSONResponse(status_code=400, content={"success": False, "message": "Level must be 1, 2, or 3"})
 
     rows = (
-        await Question.find(Question.lessonId == lesson_id, Question.quizLevel == quiz_level)
+        await Question.find(
+            Question.lessonId == lesson_id,
+            Question.quizLevel == quiz_level,
+            Question.status != "pending",
+        )
         .sort(+Question.order)
         .to_list()
     )
@@ -286,7 +302,7 @@ async def get_questions_by_level(lesson_id: str, level: str, _student: StudentDe
 @assessments.get("/{lesson_id}")
 async def get_assessment_questions(lesson_id: str, _student: StudentDep):
     questions = (
-        await Question.find(Question.lessonId == lesson_id)
+        await Question.find(Question.lessonId == lesson_id, Question.status != "pending")
         .sort(+Question.quizLevel, +Question.order)
         .to_list()
     )
@@ -735,9 +751,28 @@ _MAX_PDF = 20 * 1024 * 1024
 _GEN_TIMEOUT = httpx.Timeout(600.0, connect=120.0, pool=None)
 
 
-async def _ml_generate(raw: bytes, filename: str, mime: str, concept_tag: str, num_questions: str) -> dict:
+async def _chapter_titles(lesson_id: str) -> tuple[str, str, str]:
+    """(chapter, next chapter, previous chapter) titles for a textbook-chapter lesson, else blanks.
+
+    Lets the ML service narrow a whole uploaded textbook to just this chapter's pages.
+    """
+    lesson = await Lesson.find_one(Lesson.lessonId == lesson_id)
+    if not lesson or lesson.grade is None or lesson.chapterNo is None:
+        return "", "", ""
+
+    async def sibling(no: int) -> str:
+        doc = await Lesson.find_one(Lesson.grade == lesson.grade, Lesson.part == lesson.part,
+                                    Lesson.chapterNo == no)
+        return doc.title if doc else ""
+
+    return lesson.title, await sibling(lesson.chapterNo + 1), await sibling(lesson.chapterNo - 1)
+
+
+async def _ml_generate(raw: bytes, filename: str, mime: str, concept_tag: str, num_questions: str,
+                       chapter: tuple[str, str, str] = ("", "", "")) -> dict:
     files = {"pdf": (filename, raw, mime or "application/pdf")}
-    data = {"conceptTag": concept_tag, "numQuestions": num_questions}
+    data = {"conceptTag": concept_tag, "numQuestions": num_questions,
+            "chapterTitle": chapter[0], "nextChapterTitle": chapter[1], "prevChapterTitle": chapter[2]}
     async with httpx.AsyncClient(timeout=_GEN_TIMEOUT) as client:
         r = await client.post(
             f"{settings.ml_service_url.rstrip('/')}/generate-questions", files=files, data=data
@@ -784,8 +819,11 @@ async def generate_questions(
     if len(raw) > _MAX_PDF:
         return JSONResponse(status_code=400, content={"success": False, "message": "PDF exceeds 20 MB limit"})
 
+    chapter = await _chapter_titles(lessonId)
+    chapter_title = chapter[0]
     try:
-        ml_data = await _ml_generate(raw, pdf.filename or "upload.pdf", pdf.content_type or "", conceptTag, numQuestions)
+        ml_data = await _ml_generate(raw, pdf.filename or "upload.pdf", pdf.content_type or "", conceptTag,
+                                     numQuestions, chapter)
     except Exception as e:  # noqa: BLE001
         return _ml_error(e)
 
@@ -808,6 +846,7 @@ async def generate_questions(
                     conceptTag=q.get("conceptTag") or conceptTag,
                     quizLevel=int(q["quizLevel"]),
                     source="pdf_generated",
+                    status="pending",
                 )
                 await doc.insert()
                 saved.setdefault(level_key, []).append(document_legacy(doc))
@@ -815,10 +854,107 @@ async def generate_questions(
                 errors.append(str(ex))
 
     total = sum(len(v) for v in saved.values())
-    out: dict[str, Any] = {"success": True, "message": f"Generated {total} questions from PDF", "questions": saved}
+    out: dict[str, Any] = {
+        "success": True,
+        "message": f"Generated {total} questions from PDF — pending teacher review",
+        "questions": saved,
+        # [first, last] PDF pages used when a whole textbook was narrowed to the chapter
+        "chapterPages": ml_data.get("chapterPages"),
+        "chapterTitle": chapter_title or None,
+    }
     if errors:
         out["warnings"] = errors
     return JSONResponse(status_code=201, content=out)
+
+
+# ── Teacher review of generated questions ─────────────────────────────────────
+class QuestionEditBody(BaseModel):
+    questionText: str | None = None
+    options: list[str] | None = None
+    correctAnswer: str | None = None
+    hint: str | None = None
+    shortTheoryExplanation: str | None = None
+    conceptTag: str | None = None
+    quizLevel: int | None = None
+
+
+class ApproveBody(BaseModel):
+    questionIds: list[str] = Field(..., min_length=1)
+
+
+def _bad_request(message: str) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"success": False, "message": message})
+
+
+@questions.get("/review")
+async def list_questions_for_review(_teacher: TeacherDep, lessonId: str | None = None):
+    """Generated questions still waiting for a teacher's approval (students can't see these)."""
+    q: dict[str, Any] = {"status": "pending"}
+    if lessonId:
+        q["lessonId"] = lessonId
+    rows = await Question.find(q).sort(+Question.quizLevel, +Question.id).to_list()
+    payload = [document_legacy(r) for r in rows]
+    return {"success": True, "count": len(payload), "data": payload}
+
+
+@questions.put("/{question_id}")
+async def edit_question(question_id: str, body: QuestionEditBody, _teacher: TeacherDep):
+    doc = await Question.find_one(Question.questionId == question_id)
+    if not doc:
+        return JSONResponse(status_code=404, content={"success": False, "message": "Question not found"})
+
+    changes = body.model_dump(exclude_none=True)
+    for field in ("questionText", "correctAnswer", "hint", "shortTheoryExplanation", "conceptTag"):
+        if field in changes:
+            changes[field] = changes[field].strip()
+            if not changes[field] and field in ("questionText", "correctAnswer"):
+                return _bad_request(f"{field} cannot be empty")
+    if "options" in changes:
+        opts = [o.strip() for o in changes["options"]]
+        if any(not o for o in opts):
+            return _bad_request("Options cannot be empty")
+        if len({o.lower() for o in opts}) != len(opts):
+            return _bad_request("Options must all be different")
+        if not 2 <= len(opts) <= 6:
+            return _bad_request("A question must have 2-6 options")
+        changes["options"] = opts
+    if "quizLevel" in changes and changes["quizLevel"] not in (1, 2, 3):
+        return _bad_request("quizLevel must be 1, 2, or 3")
+
+    options = changes.get("options", doc.options)
+    correct = changes.get("correctAnswer", doc.correctAnswer)
+    if correct not in options:
+        return _bad_request("The correct answer must be one of the options")
+
+    for k, v in changes.items():
+        setattr(doc, k, v)
+    await doc.save()
+    return {"success": True, "data": document_legacy(doc)}
+
+
+@questions.post("/approve")
+async def approve_questions(body: ApproveBody, _teacher: TeacherDep):
+    """Publish reviewed questions so students start receiving them."""
+    rows = await Question.find({"questionId": {"$in": body.questionIds}}).to_list()
+    for doc in rows:
+        if doc.correctAnswer not in doc.options:
+            return _bad_request(f"Question {doc.questionId}: correct answer is not one of the options")
+    for doc in rows:
+        doc.status = "approved"
+        await doc.save()
+    return {"success": True, "count": len(rows), "message": f"Approved {len(rows)} question(s)"}
+
+
+@questions.delete("/{question_id}")
+async def reject_question(question_id: str, _teacher: TeacherDep):
+    """Discard a generated question. Only pending ones — approved bank questions stay safe."""
+    doc = await Question.find_one(Question.questionId == question_id, Question.status == "pending")
+    if not doc:
+        return JSONResponse(
+            status_code=404, content={"success": False, "message": "Pending question not found"}
+        )
+    await doc.delete()
+    return {"success": True, "message": "Question rejected"}
 
 
 @questions.post("/practice-generate")

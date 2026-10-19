@@ -2,14 +2,14 @@
 .theory-box {
   margin-top: 16px;
   padding: 16px 18px;
-  border: 1px solid rgba(99,102,241,0.3);
+  border: 1px solid rgba(14, 124, 102,0.3);
   border-radius: 12px;
-  background: rgba(99,102,241,0.07);
+  background: rgba(14, 124, 102,0.07);
   animation: slideDown 0.3s ease;
 }
 .theory-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .theory-icon   { font-size: 18px; }
-.theory-title  { font-size: 13px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; }
+.theory-title  { font-size: 13px; font-weight: 700; color: #0B6553; text-transform: uppercase; letter-spacing: 0.5px; }
 .theory-correct {
   display: flex;
   align-items: baseline;
@@ -22,5 +22,5 @@
 }
 .theory-correct-label  { font-size: 12px; color: #16a34a; font-weight: 600; white-space: nowrap; }
 .theory-correct-answer { font-size: 14px; color: #16a34a; font-weight: 700; }
-.theory-text { font-size: 14px; color: #4f46e5; line-height: 1.7; margin: 0; }
+.theory-text { font-size: 14px; color: #0B6553; line-height: 1.7; margin: 0; }
 @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }

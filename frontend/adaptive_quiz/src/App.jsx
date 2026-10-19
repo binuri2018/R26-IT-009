@@ -18,14 +18,12 @@ const PrivateRoute = ({ children }) => {
 };
 
 import { VoiceProvider } from './context/VoiceContext';
-import GlobalVoiceController from './components/VoiceController/GlobalVoiceController';
 
 function App() {
   return (
     <VoiceProvider>
       <AssessmentProvider>
         <BrowserRouter basename="/adaptive-quiz">
-          <GlobalVoiceController />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/lesson-complete" element={<PrivateRoute><LessonCompletedPage /></PrivateRoute>} />

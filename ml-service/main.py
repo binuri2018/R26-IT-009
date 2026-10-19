@@ -179,13 +179,18 @@ async def generate_questions(
     pdf: UploadFile = File(..., description="PDF file to generate questions from"),
     numQuestions: int  = Form(9,         description="Total questions to generate (default 9)"),
     conceptTag:   str  = Form("General", description="Concept tag for all questions"),
+    chapterTitle: str  = Form("",        description="If the PDF is a whole textbook, use only this chapter"),
+    nextChapterTitle: str = Form("",     description="Title of the following chapter (marks where it ends)"),
+    prevChapterTitle: str = Form("",     description="Title of the previous chapter (search starts after it)"),
 ):
     """
     Upload a PDF and receive auto-generated MCQ questions grouped by difficulty level.
 
     Returns { level1: [...], level2: [...], level3: [...] } where each question has:
     questionId, questionText, options, correctAnswer, hint, shortTheoryExplanation,
-    conceptTag, quizLevel.
+    conceptTag, quizLevel. With ``chapterTitle``, a whole textbook is narrowed to that
+    chapter's pages (``chapterPages`` = [first, last], 1-based); if the chapter isn't
+    found (e.g. the PDF is already just that chapter) the whole PDF is used.
     """
     if not (pdf.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Uploaded file must be a PDF.")
@@ -197,9 +202,23 @@ async def generate_questions(
             tmp.write(content)
             tmp_path = tmp.name
 
-        questions = get_qgen().generate_from_pdf(tmp_path, numQuestions, conceptTag)
+        pages = None
+        if chapterTitle.strip():
+            from modules.question_generator import find_chapter_pages
+
+            pages = await asyncio.to_thread(
+                find_chapter_pages, tmp_path, chapterTitle, nextChapterTitle, prevChapterTitle
+            )
+        questions = await asyncio.to_thread(
+            get_qgen().generate_from_pdf, tmp_path, numQuestions, conceptTag, pages
+        )
         total = sum(len(v) for v in questions.values())
-        return {"success": True, "total": total, "questions": questions}
+        return {
+            "success": True,
+            "total": total,
+            "questions": questions,
+            "chapterPages": [pages[0] + 1, pages[-1] + 1] if pages else None,
+        }
 
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

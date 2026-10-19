@@ -108,14 +108,23 @@ class Settings(BaseSettings):
     emotion_model_path: Path = Path("backend/model/best.pt")
     # Learning-state RandomForest classifier (joblib).
     quiz_model_path: Path = Path("backend/components/adaptive_quiz/models/learning_state_model.pkl")
-    emotion_predict_imgsz: int = 320
-    emotion_yolo_conf: float = 0.10
-    # YOLO valence boxes on a webcam face often peak ~0.18–0.50, not 0.45+.
-    emotion_min_conf: float = 0.18
-    # Slightly higher than happy so dim/noisy frames don't always fire a hint.
-    emotion_negative_min_conf: float = 0.22
+    # Must match the checkpoint's training size (best.pt: 640). At 320 the model reads
+    # most neutral webcam faces as "negative" → the UI showed "frustrated" all the time.
+    emotion_predict_imgsz: int = 640
+    emotion_yolo_conf: float = 0.20
+    # Webcam smiles score low on this model (median ~0.24), so happy keeps a lower bar.
+    emotion_min_conf: float = 0.25
+    # A frown fires a hint/brain-break, so it needs a clearly confident read
+    # (real frowns measured median ~0.47; weak 0.2–0.35 "negative" boxes were noise).
+    emotion_negative_min_conf: float = 0.40
+    # Face detector (OpenCV YuNet) gates the expression model: no face → "unknown",
+    # and only expression boxes on the detected face count.
+    face_model_path: Path = Path("backend/model/face_detection_yunet_2023mar.onnx")
+    face_min_score: float = 0.7
     # Optional JSON object: raw class name -> expression label.
     emotion_label_map: str = ""
+    # Log raw YOLO boxes (labels/confidences only, never images) for each webcam frame.
+    emotion_debug: bool = False
 
     def resolved_resource_dir(self) -> Path:
         p = self.resource_dir
@@ -131,6 +140,10 @@ class Settings(BaseSettings):
 
     def resolved_emotion_model_path(self) -> Path:
         p = self.emotion_model_path
+        return p if p.is_absolute() else (self.project_root / p)
+
+    def resolved_face_model_path(self) -> Path:
+        p = self.face_model_path
         return p if p.is_absolute() else (self.project_root / p)
 
     def resolved_quiz_model_path(self) -> Path:

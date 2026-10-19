@@ -35,7 +35,9 @@ const WebcamCapture = ({ videoRef, currentExpression, isWebcamActive, error }) =
       {/* Expression badge */}
       <div className="webcam-expression">
         <span className="expression-emoji">{getExpressionEmoji(currentExpression)}</span>
-        <span className="expression-label">{currentExpression}</span>
+        <span className="expression-label">
+          {currentExpression === 'unknown' ? 'no face detected' : currentExpression}
+        </span>
       </div>
     </div>
   );

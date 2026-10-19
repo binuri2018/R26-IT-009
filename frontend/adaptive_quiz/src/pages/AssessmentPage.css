@@ -1,8 +1,8 @@
 /* AssessmentPage.css */
 .assessment-page {
   min-height: 100vh;
-  background: radial-gradient(ellipse at 0% 0%, rgba(99,102,241,0.08) 0%, transparent 50%),
-              radial-gradient(ellipse at 100% 100%, rgba(168,85,247,0.06) 0%, transparent 50%),
+  background: radial-gradient(ellipse at 0% 0%, rgba(14, 124, 102,0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 100% 100%, rgba(45, 154, 114,0.06) 0%, transparent 50%),
               #f5f7f9;
   padding: 24px;
   position: relative;
@@ -57,9 +57,9 @@
 .level-chip {
   padding: 5px 12px;
   border-radius: 8px;
-  background: rgba(99,102,241,0.15);
-  border: 1px solid rgba(99,102,241,0.3);
-  color: #4f46e5;
+  background: rgba(14, 124, 102,0.15);
+  border: 1px solid rgba(14, 124, 102,0.3);
+  color: #0B6553;
   font-size: 13px;
   font-weight: 700;
 }
@@ -67,7 +67,7 @@
 /* Question card */
 .question-card {
   background: rgba(255,255,255,0.97);
-  border: 1px solid rgba(99,102,241,0.2);
+  border: 1px solid rgba(14, 124, 102,0.2);
   border-radius: 20px;
   padding: 28px 28px 24px;
   box-shadow: 0 16px 48px rgba(15,23,42,0.12);
@@ -90,7 +90,7 @@
   height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #0B6553, #13866F);
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -104,9 +104,9 @@
 .concept-tag {
   padding: 4px 10px;
   border-radius: 6px;
-  background: rgba(99,102,241,0.1);
-  border: 1px solid rgba(99,102,241,0.2);
-  color: #4f46e5;
+  background: rgba(14, 124, 102,0.1);
+  border: 1px solid rgba(14, 124, 102,0.2);
+  color: #0B6553;
   font-size: 12px;
   font-weight: 600;
 }
@@ -146,7 +146,7 @@
   padding: 12px 24px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #0B6553, #13866F);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -156,7 +156,7 @@
   align-items: center;
   gap: 8px;
 }
-.btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(99,102,241,0.4); }
+.btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(14, 124, 102,0.4); }
 .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-next {
@@ -174,8 +174,8 @@
 
 .spin-ring {
   width: 36px; height: 36px;
-  border: 3px solid rgba(99,102,241,0.2);
-  border-top-color: #6366f1;
+  border: 3px solid rgba(14, 124, 102,0.2);
+  border-top-color: #0E7C66;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

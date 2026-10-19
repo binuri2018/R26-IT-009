@@ -30,8 +30,8 @@
 }
 
 .circuit-tile:hover {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(14, 124, 102, 0.2);
+  border-color: rgba(14, 124, 102, 0.5);
 }
 
 .wire {

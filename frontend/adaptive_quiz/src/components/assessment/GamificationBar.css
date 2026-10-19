@@ -22,7 +22,7 @@
 }
 
 .recharge-btn {
-  background: linear-gradient(135deg, #6366f1, #9333ea);
+  background: linear-gradient(135deg, #0E7C66, #0B6553);
   border: none;
   border-radius: 12px;
   color: white;
@@ -32,12 +32,12 @@
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 124, 102, 0.3);
 }
 
 .recharge-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 6px 16px rgba(14, 124, 102, 0.5);
   filter: brightness(1.1);
 }
 
@@ -83,6 +83,6 @@
 }
 
 .xp-fill {
-  background: linear-gradient(90deg, #6366f1, #9333ea);
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  background: linear-gradient(90deg, #0E7C66, #0B6553);
+  box-shadow: 0 0 10px rgba(14, 124, 102, 0.3);
 }

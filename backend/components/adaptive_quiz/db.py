@@ -47,6 +47,13 @@ async def init_quiz_db() -> None:
     _init_error = None
     logger.info("Adaptive Quiz MongoDB connected (Beanie initialised)")
 
+    try:  # one lesson per textbook chapter, so students can pick Grade → Part → chapter
+        from backend.components.adaptive_quiz.syllabus import ensure_syllabus_lessons
+
+        await ensure_syllabus_lessons()
+    except Exception:  # noqa: BLE001 — quiz still works with whatever lessons exist
+        logger.exception("Could not create textbook chapter lessons")
+
 
 async def close_quiz_db() -> None:
     global _client, _ready

@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { loginStudent, registerStudent } from '../api/authApi';
 import { useAssessment } from '../context/AssessmentContext';
 import { useVoice } from '../context/VoiceContext';
+import Logo from '../components/brand/Logo';
+import LottiePlayer from '../components/brand/LottiePlayer';
+import adaptiveQuizAnimation from '../assets/lottie/adaptive-quiz.json';
 import './LoginPage.css';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -44,6 +47,7 @@ const LoginPage = () => {
   const [mode, setMode]         = useState('login'); // 'login' | 'register'
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form fields
   const [form, setForm] = useState({
@@ -148,97 +152,125 @@ const LoginPage = () => {
     showError(field) ? <span className="field-error">{fieldErrors[field]}</span> : null;
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        {/* Header */}
-        <div className="login-header">
-          <div className="login-logo">🧠</div>
-          <h1 className="login-title">STEM Assessment</h1>
-          <p className="login-subtitle">Behavior-Aware Multi-Level Learning System</p>
-        </div>
-
-        {/* Tab switch */}
-        <div className="login-tabs">
-          <button id="tab-login"    type="button" className={`tab-btn ${mode === 'login'    ? 'active' : ''}`} onClick={() => switchMode('login')}>Login</button>
-          <button id="tab-register" type="button" className={`tab-btn ${mode === 'register' ? 'active' : ''}`} onClick={() => switchMode('register')}>Register</button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="login-form" noValidate>
-          {mode === 'register' && (
-            <>
-              <div className={fieldClass('studentId')}>
-                <label htmlFor="studentId">Student ID</label>
-                <input
-                  id="studentId" name="studentId" type="text"
-                  placeholder="e.g. ST22001234"
-                  value={form.studentId}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  aria-invalid={showError('studentId')}
-                />
-                {renderFieldError('studentId')}
-              </div>
-              <div className={fieldClass('name')}>
-                <label htmlFor="name">Full Name</label>
-                <input
-                  id="name" name="name" type="text"
-                  placeholder="Your full name"
-                  value={form.name}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  aria-invalid={showError('name')}
-                />
-                {renderFieldError('name')}
-              </div>
-            </>
-          )}
-
-          <div className={fieldClass('email')}>
-            <label htmlFor="email">Email Address</label>
-            <input
-              id="email" name="email" type="email"
-              placeholder="student@university.edu"
-              value={form.email}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              aria-invalid={showError('email')}
-            />
-            {renderFieldError('email')}
+    <div className="auth">
+      {/* ── Left: curved brand panel with Lottie ── */}
+      <aside className="auth__side">
+        <span className="auth__orb auth__orb--1" aria-hidden="true" />
+        <span className="auth__orb auth__orb--2" aria-hidden="true" />
+        <div className="auth__side-inner">
+          <div className="auth__brand">
+            <span className="auth__brand-tile"><Logo withText={false} size={40} /></span>
+            <span className="auth__brand-name">STEM Learn LK</span>
           </div>
 
-          <div className={fieldClass('password')}>
-            <label htmlFor="password">Password</label>
-            <input
-              id="password" name="password" type="password"
-              placeholder="••••••••"
-              value={form.password}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              aria-invalid={showError('password')}
-            />
-            {renderFieldError('password')}
-            {mode === 'register' && !showError('password') && (
-              <span className="field-hint">At least 6 characters</span>
+          <div className="auth__pitch">
+            <span className="auth__eyebrow"><i />Adaptive assessment · Grade 10 &amp; 11 science</span>
+            <h2>Quizzes that <em>adapt to every learner</em></h2>
+            <p>
+              Three-level quizzes from the national syllabus that read how each student is
+              doing — and step in with hints and support the moment they get stuck.
+            </p>
+          </div>
+
+          <LottiePlayer className="auth__lottie" animationData={adaptiveQuizAnimation} />
+
+          <ul className="auth__bullets">
+            <li><i className="teal" />Learning-state prediction</li>
+            <li><i className="amber" />Emotion-aware hints</li>
+          </ul>
+        </div>
+      </aside>
+
+      {/* ── Right: sign-in ── */}
+      <main className="auth__main">
+        <div className="auth__panel">
+          <div className="auth__badge"><Logo withText={false} size={54} /></div>
+          <header className="auth__head">
+            <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
+            <p>{mode === 'login'
+              ? 'Sign in with your student account to continue'
+              : 'Register to start your first adaptive quiz'}</p>
+          </header>
+
+          <form onSubmit={handleSubmit} className="auth__form" noValidate>
+            {mode === 'register' && (
+              <div className="auth__row">
+                <div className={fieldClass('studentId')}>
+                  <label htmlFor="studentId">Student ID</label>
+                  <div className="field">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M6 8h4M6 11h8" /></svg>
+                    <input id="studentId" name="studentId" type="text" placeholder="e.g. ST22001234"
+                           value={form.studentId} onChange={handleChange} onBlur={handleBlur}
+                           aria-invalid={showError('studentId')} />
+                  </div>
+                  {renderFieldError('studentId')}
+                </div>
+                <div className={fieldClass('name')}>
+                  <label htmlFor="name">Full name</label>
+                  <div className="field">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3.2" /><path d="M4 17c1-3.2 3.3-4.6 6-4.6s5 1.4 6 4.6" /></svg>
+                    <input id="name" name="name" type="text" placeholder="Your full name"
+                           value={form.name} onChange={handleChange} onBlur={handleBlur}
+                           aria-invalid={showError('name')} />
+                  </div>
+                  {renderFieldError('name')}
+                </div>
+              </div>
             )}
-          </div>
 
-          {error && <div className="form-error">⚠️ {error}</div>}
+            <div className={fieldClass('email')}>
+              <label htmlFor="email">Email address</label>
+              <div className="field">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /></svg>
+                <input id="email" name="email" type="email" placeholder="e.g. student@school.lk" autoComplete="email"
+                       value={form.email} onChange={handleChange} onBlur={handleBlur}
+                       aria-invalid={showError('email')} />
+              </div>
+              {renderFieldError('email')}
+            </div>
 
-          <button id="btn-submit" type="submit" className="btn-primary" disabled={loading}>
-            {loading ? <span className="spinner" /> : mode === 'login' ? '🔐 Login' : '📝 Create Account'}
-          </button>
+            <div className={fieldClass('password')}>
+              <label htmlFor="password">Password</label>
+              <div className="field">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="9" width="12" height="8" rx="2" /><path d="M7 9V7a3 3 0 0 1 6 0v2" /></svg>
+                <input id="password" name="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••"
+                       autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                       value={form.password} onChange={handleChange} onBlur={handleBlur}
+                       aria-invalid={showError('password')} />
+                <button type="button" className="field__eye" onClick={() => setShowPassword(v => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" /><circle cx="10" cy="10" r="2.4" />
+                    {showPassword && <path d="M3 3l14 14" />}
+                  </svg>
+                </button>
+              </div>
+              {renderFieldError('password')}
+              {mode === 'register' && !showError('password') && (
+                <span className="field-hint">At least 6 characters</span>
+              )}
+            </div>
 
-          <div style={{ marginTop: '20px', textAlign: 'center', opacity: 0.6, fontSize: '12px' }}>
-            <span
-              onClick={() => navigate('/teacher')}
-              style={{ cursor: 'pointer', color: '#6366f1', textDecoration: 'underline' }}
-            >
-              👩‍🏫 Teacher Portal
-            </span>
-          </div>
-        </form>
-      </div>
+            {error && <div className="form-error" role="alert">{error}</div>}
+
+            <button id="btn-submit" type="submit" className="auth__submit" disabled={loading}>
+              {loading ? <span className="spinner" /> : mode === 'login' ? 'Sign in' : 'Create account'}
+            </button>
+          </form>
+
+          <p className="auth__switch">
+            {mode === 'login' ? (
+              <>New here? <button id="tab-register" type="button" onClick={() => switchMode('register')}>Create an account</button></>
+            ) : (
+              <>Already registered? <button id="tab-login" type="button" onClick={() => switchMode('login')}>Sign in</button></>
+            )}
+          </p>
+
+          <p className="auth__teacher">
+            Are you a teacher? <button type="button" onClick={() => navigate('/teacher')}>Open the Teacher Portal</button>
+          </p>
+        </div>
+      </main>
     </div>
   );
 };

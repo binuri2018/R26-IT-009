@@ -47,8 +47,8 @@ const ResearchCharts = ({ responses }) => {
             <AreaChart data={timelineData}>
               <defs>
                 <linearGradient id="colorValence" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#0E7C66" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#0E7C66" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ef" vertical={false} />
@@ -63,7 +63,7 @@ const ResearchCharts = ({ responses }) => {
               <Area 
                 type="monotone" 
                 dataKey="valence" 
-                stroke="#6366f1" 
+                stroke="#0E7C66" 
                 strokeWidth={3}
                 fillOpacity={1} 
                 fill="url(#colorValence)" 

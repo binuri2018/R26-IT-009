@@ -48,9 +48,9 @@
 }
 
 .math-btn:hover {
-  background: #6366f1;
+  background: #0E7C66;
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 8px 20px rgba(14, 124, 102, 0.4);
 }
 
 .math-blitz .puzzle-status {

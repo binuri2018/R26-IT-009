@@ -22,6 +22,10 @@ class Lesson(Document):
     thumbnailUrl: str = ""
     estimatedDuration: int = 30
     isActive: bool = True
+    # Textbook position (Grade 10/11 · Part I/II · chapter n) — None for ad-hoc lessons
+    grade: int | None = None
+    part: int | None = None
+    chapterNo: int | None = None
 
     class Settings:
         name = "lessons"
@@ -39,6 +43,9 @@ class Question(Document):
     hint: str
     order: int = 0
     source: str = "manual"
+    # PDF-generated questions start as "pending" and reach students only once a
+    # teacher approves them. Rows without the field (seed/manual) count as approved.
+    status: str = "approved"
 
     @field_validator("options")
     @classmethod

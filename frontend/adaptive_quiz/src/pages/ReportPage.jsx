@@ -6,9 +6,9 @@
  * - Learning state distribution
  */
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate }         from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAssessment }       from '../context/AssessmentContext';
-import { getReport, getProgressOverTime } from '../api/responseApi';
+import { getReport, getProgressOverTime, getStudentHistory } from '../api/responseApi';
 import { getStudyPlan, saveStudyPlan, resetStudyPlan } from '../api/studyPlanApi';
 import { getAllLessons } from '../api/lessonApi';
 import {
@@ -20,35 +20,13 @@ import {
 import { getExpressionEmoji }  from '../utils/quizLogic';
 import { useVoice } from '../context/VoiceContext';
 import ResearchCharts      from '../components/research/ResearchCharts';
+import Logo from '../components/brand/Logo';
 import './ReportPage.css';
-
-const ScoreCircle = ({ score }) => {
-  const badge = getPerformanceBadge(score);
-  return (
-    <div className="score-circle" style={{ '--score-color': badge.color }}>
-      <svg viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="42" className="circle-track" />
-        <circle
-          cx="50" cy="50" r="42"
-          className="circle-fill"
-          style={{
-            strokeDasharray: `${(score / 100) * 263.9} 263.9`,
-            stroke: badge.color,
-          }}
-        />
-      </svg>
-      <div className="score-inner">
-        <span className="score-value">{Math.round(score)}%</span>
-        <span className="score-badge-label" style={{ color: badge.color }}>{badge.label}</span>
-      </div>
-    </div>
-  );
-};
 
 const SESSION_CFG = {
   review:    { bg: 'rgba(239,68,68,0.10)',   border: 'rgba(239,68,68,0.28)',   text: '#dc2626', icon: '📚' },
-  practice:  { bg: 'rgba(99,102,241,0.10)',  border: 'rgba(99,102,241,0.28)',  text: '#4f46e5', icon: '🔄' },
-  quiz:      { bg: 'rgba(168,85,247,0.10)',  border: 'rgba(168,85,247,0.28)',  text: '#7c3aed', icon: '📝' },
+  practice:  { bg: 'rgba(14, 124, 102,0.10)',  border: 'rgba(14, 124, 102,0.28)',  text: '#0B6553', icon: '🔄' },
+  quiz:      { bg: 'rgba(45, 154, 114,0.10)',  border: 'rgba(45, 154, 114,0.28)',  text: '#13866F', icon: '📝' },
   flashcard: { bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.28)',  text: '#d97706', icon: '⚡' },
   advanced:  { bg: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.28)',   text: '#16a34a', icon: '🚀' },
 };
@@ -57,8 +35,11 @@ const INTENSITY_LABEL = { light: 'Light Load', medium: 'Medium Intensity', inten
 const INTENSITY_COLOR = { light: '#22c55e',    medium: '#f59e0b',          intensive: '#ef4444' };
 const DURATION_SCALE  = { quick: 0.6, standard: 1.0, deep: 1.5 };
 
+const expressionLabel = (e) => (e === 'unknown' ? 'No face detected' : e);
+
 const ReportPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { student, lesson, sessionId, resetAssessment, setStudent, setLesson } = useAssessment();
   const { registerCommands, speak } = useVoice();
 
@@ -104,12 +85,32 @@ const ReportPage = () => {
         let activeLesson = lesson;
         if (!activeLesson) {
           const lessonsRes = await getAllLessons();
-          activeLesson = lessonsRes.data?.[0] || null;
+          // The lesson the student last picked — not just the first one in the list
+          const picked = localStorage.getItem('stemLessonId');
+          activeLesson = lessonsRes.data?.find(l => l.lessonId === picked) || lessonsRes.data?.[0] || null;
           if (!activeLesson) { setError('No lessons found.'); setLoading(false); return; }
           setLesson(activeLesson);
         }
 
-        const res = await getReport(stored.studentId, activeLesson.lessonId, sessionId);
+        // The context's sessionId is the quiz this tab last ran — possibly another lesson
+        // (ids look like "<student>_<lesson>_<ts>"). Only use it for that lesson; otherwise
+        // open this lesson's latest session. Never send no session: the backend would
+        // merge every attempt into one report.
+        const belongs = (s) => s?.startsWith(`${stored.studentId}_${activeLesson.lessonId}_`);
+        const picked = location.state?.sessionId;      // a row clicked in "My past reports"
+        let reportSession = belongs(picked) ? picked : belongs(sessionId) ? sessionId : null;
+        if (!reportSession) {
+          // Latest report for this lesson from the student's history (newest first) —
+          // works even when the lesson has no live questions right now
+          const hist = await getStudentHistory(stored.studentId);
+          reportSession = (hist.data || []).find(r => r.lessonId === activeLesson.lessonId)?.sessionId || null;
+          if (!reportSession) {
+            setError('No completed assessment for this lesson yet.');
+            return;
+          }
+        }
+
+        const res = await getReport(stored.studentId, activeLesson.lessonId, reportSession);
         setReport(res.data);
         // Load progress timeline in parallel (non-blocking — failure is silent)
         try {
@@ -249,47 +250,82 @@ const ReportPage = () => {
     }
   };
 
+  const scoreBadge = getPerformanceBadge(report.totalScore);
+  const scorePct   = Math.round(report.totalScore);
+  const reportDate = report.createdAt ? new Date(report.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const initials   = (student?.name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
   return (
     <div className="report-page">
-      <div className="report-container">
-
-        {/* Header */}
-        <div className="report-header">
-          <a href="/" className="btn-back-home" title="Back to STEM Learn LK home">
-            ← Home
-          </a>
-          <h1 className="report-title">📊 Assessment Report</h1>
-          <p className="report-meta">{lesson?.title} · {student?.name}</p>
-          <button id="btn-download-pdf" className="btn-download-pdf" onClick={() => window.print()}>
-            🖨️ Download / Print PDF
+      {/* ── Top bar ── */}
+      <header className="rp-topbar">
+        <Logo />
+        <div className="rp-topbar-actions">
+          <button type="button" className="rp-link" onClick={() => navigate('/lesson-complete')}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5l-5 5 5 5" /></svg>
+            All chapters
           </button>
+          {student && <span className="rp-avatar" title={student.name}>{initials}</span>}
         </div>
+      </header>
 
-        {/* Gamification: earned badges */}
-        {badges.length > 0 && (
-          <div className="badges-row">
-            {badges.map((b) => (
-              <div key={b.label} className="badge-chip" style={{ borderColor: b.color + '55', background: b.color + '14' }} title={b.desc}>
-                <span className="badge-icon">{b.icon}</span>
-                <span className="badge-label" style={{ color: b.color }}>{b.label}</span>
+      {/* ── Hero ── */}
+      <section className="rp-hero">
+        <div className="rp-hero-inner">
+          <div className="rp-hero-text">
+            <span className="rp-eyebrow"><i />Assessment report{reportDate ? ` · ${reportDate}` : ''}</span>
+            <h1>{lesson?.title || 'Your report'}</h1>
+            <p className="rp-hero-meta">{lesson?.description}{student?.name ? ` · ${student.name}` : ''}</p>
+            <p className="rp-hero-summary">{report.progressSummary}</p>
+
+            {badges.length > 0 && (
+              <div className="rp-badges">
+                {badges.map((b) => (
+                  <span key={b.label} className="rp-badge" title={b.desc}>
+                    <i style={{ background: b.color }} />{b.label}
+                  </span>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* Score + Summary */}
-        <div className="report-top">
-          <ScoreCircle score={report.totalScore} />
-          <div className="report-summary-box">
-            <h3>Progress Summary</h3>
-            <p className="summary-text">{report.progressSummary}</p>
-            <div className="report-stats-row">
-              <div className="stat-chip">⏱ {formatTotalTime(report.totalTime)}</div>
-              <div className="stat-chip">💡 {report.hintUsageCount} Hints Used</div>
-              <div className="stat-chip">{getExpressionEmoji(report.mostCommonExpression)} {report.mostCommonExpression}</div>
+            <div className="rp-hero-actions">
+              <button type="button" className="rp-btn rp-btn--primary" onClick={handleRetry}>
+                Retake this quiz
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 4v3h3" /></svg>
+              </button>
+              <button id="btn-download-pdf" type="button" className="rp-btn rp-btn--ghost" onClick={() => window.print()}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8V3h8v5M6 14H4V8h12v6h-2M6 12h8v5H6z" /></svg>
+                Download / Print PDF
+              </button>
             </div>
           </div>
+
+          <div className="rp-hero-score">
+            <div className="rp-ring" style={{ '--pct': scorePct, '--ring': scoreBadge.color }}>
+              <div className="rp-ring-inner">
+                <strong>{scorePct}<small>%</small></strong>
+                <span style={{ color: scoreBadge.color }}>{scoreBadge.label}</span>
+              </div>
+            </div>
+            <dl className="rp-stats">
+              <div>
+                <dt>Time taken</dt>
+                <dd>{formatTotalTime(report.totalTime)}</dd>
+              </div>
+              <div>
+                <dt>Hints used</dt>
+                <dd>{report.hintUsageCount}</dd>
+              </div>
+              <div>
+                <dt>Mostly felt</dt>
+                <dd className="rp-cap">{expressionLabel(report.mostCommonExpression)}</dd>
+              </div>
+            </dl>
+          </div>
         </div>
+      </section>
+
+      <div className="report-container">
 
         {/* Level-wise scores */}
         <div className="report-section">
@@ -333,10 +369,10 @@ const ReportPage = () => {
         {/* Weak areas */}
         {report.weakAreas?.length > 0 && (
           <div className="report-section">
-            <h3 className="section-title">⚠️ Weak Areas</h3>
+            <h3 className="section-title">Weak areas</h3>
             <div className="weak-area-list">
               {report.weakAreas.map((area) => (
-                <div key={area} className="weak-area-chip">📌 {area}</div>
+                <div key={area} className="weak-area-chip">{area}</div>
               ))}
             </div>
             <p className="weak-area-note">These concepts scored below 60%. Focus revision here.</p>
@@ -350,7 +386,7 @@ const ReportPage = () => {
             {expressions.map(({ expression, count }) => (
               <div key={expression} className={`expression-chip ${expression === report.mostCommonExpression ? 'dominant' : ''}`}>
                 <span className="exp-emoji">{getExpressionEmoji(expression)}</span>
-                <span className="exp-name">{expression}</span>
+                <span className="exp-name">{expressionLabel(expression)}</span>
                 <span className="exp-count">{count}×</span>
               </div>
             ))}
@@ -358,14 +394,14 @@ const ReportPage = () => {
         </div>
 
         {/* Personalized Study Plan (Research Component) */}
-        <div className="report-section" style={{ borderLeft: '4px solid #6366f1' }}>
+        <div className="report-section" style={{ borderLeft: '4px solid #0E7C66' }}>
           <h3 className="section-title">✨ Personalized Study Plan</h3>
           <p className="section-subtitle">Tailored recommendations based on your performance &amp; behavior signals</p>
           <div className="study-plan-cards">
             {generateStudyPlan(report).map((item, idx) => {
               const typeConfig = {
                 conceptual: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.22)',  badge: 'Review Needed',    badgeBg: 'rgba(239,68,68,0.15)' },
-                behavioral: { color: '#7c3aed', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)', badge: 'Behavior Insight', badgeBg: 'rgba(167,139,250,0.15)' },
+                behavioral: { color: '#13866F', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)', badge: 'Behavior Insight', badgeBg: 'rgba(167,139,250,0.15)' },
                 resource:   { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.22)',  badge: 'Next Action',      badgeBg: 'rgba(34,197,94,0.15)' },
               };
               const cfg = typeConfig[item.type] || typeConfig.resource;
